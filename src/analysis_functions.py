@@ -35,7 +35,7 @@ def confusion_matrix(model, dataloader, classes, device, n_batches=1):
     print('Accuracy for these batches:', right/(right+wrong))
     return cm.astype(np.int32)
 
-def plot_cm(cm, classes, save_file, title, style='simple'):
+def plot_cm(cm, classes, title=None, file_path=None, style='simple'):
 
     if style == 'simple':
         fig = plt.figure(figsize=(12,10))
@@ -52,9 +52,10 @@ def plot_cm(cm, classes, save_file, title, style='simple'):
 
         fig = plt.figure(figsize=(12,10))
         ax = fig.subplots(1,1)
-        ax.set_title('Confusion Matrix of'+title)
+        if title:
+            ax.set_title('Confusion Matrix of'+title)
 
-        res = sn.heatmap(df_cm, annot=True, square=True, cmap='Blues',
+        res = sns.heatmap(df_cm, annot=True, square=True, cmap='Blues',
                          xticklabels = classes, yticklabels=classes, fmt='g', 
                          ax=ax, cbar_kws={'label': 'Number of Images'})
 
@@ -67,7 +68,8 @@ def plot_cm(cm, classes, save_file, title, style='simple'):
         res.axvline(x = 16.98, color = 'k',
                     linewidth = 1)
     
-    if save_file: plt.savefig(save_file, dpi=300)
+    if file_path: 
+        plt.savefig(file_path, dpi=300)
     plt.show()
 
 def parameter_analysis(classes, info_file, visualize=False, print_lens=False):

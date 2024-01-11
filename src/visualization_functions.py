@@ -11,8 +11,8 @@ def trim_axes(axs, N):
         ax.remove()
     return axs[:N]
 
-def show_images(images, labels=None, img_per_row=8, img_height=1, show_colorbar=False, 
-                clim=3, scale_0_1=False, hist_bins=None, show_axis=False):
+def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12, title=None, show_colorbar=False, 
+                clim=3, cmap='viridis', scale_0_1=False, hist_bins=None, show_axis=False, save_path=None):
     
     '''
     Plots multiple images in grid.
@@ -23,6 +23,7 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, show_colorbar=
     img_height: height of image in axes;
     show_colorbar: show colorbar;
     clim: int or list of int, value of standard deviation of colorbar range;
+    cmap: colormap;
     scale_0_1: scale image to 0~1;
     hist_bins: number of bins for histogram;
     show_axis: show axis
@@ -46,7 +47,7 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, show_colorbar=
     if hist_bins: n +=1
         
     fig, axes = plt.subplots(n*len(images)//img_per_row+1*int(len(images)%img_per_row>0), img_per_row, 
-                             figsize=(16, n*h*len(images)//img_per_row+1))
+                             figsize=(16, n*h*len(images)//img_per_row+1), constrained_layout=True)
     trim_axes(axes, len(images))
 
     for i, img in enumerate(images):
@@ -62,8 +63,9 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, show_colorbar=
         else:
             index = (i//img_per_row)*n, i%img_per_row
 
-        axes[index].title.set_text(labels[i])
-        im = axes[index].imshow(img)
+        axes[index].set_title (labels[i], fontsize=label_size)
+        im = axes[index].imshow(img, cmap=cmap)
+
         if show_colorbar:
             m, s = np.mean(img), np.std(img) 
             if type(clim) == list:
@@ -82,7 +84,13 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, show_colorbar=
         if hist_bins:
             index_hist = (i//img_per_row)*n+1, i%img_per_row
             h = axes[index_hist].hist(img.flatten(), bins=hist_bins)
-        
+
+        if title:
+            fig.suptitle(title, fontsize=12)
+
+    if save_path:
+        plt.savefig(save_path, dpi=300)
+    # plt.tight_layout()
     plt.show()
     
     
