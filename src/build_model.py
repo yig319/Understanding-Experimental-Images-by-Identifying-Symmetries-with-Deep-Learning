@@ -1,6 +1,26 @@
 import torch
 import torch.nn as nn
 from torchvision import models
+import timm
+
+def xcit(in_channels, n_classes):
+    model = timm.create_model('xcit_large_24_p8_224', pretrained=False)
+    model.patch_embed.proj[0][0] = nn.Conv2d(in_channels, 192, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+    model.head = nn.Sequential(nn.BatchNorm1d(2048),
+                                nn.Dropout(p=0.5, inplace=False),
+                                nn.Linear(in_features = 2048, out_features=512, bias=False),
+                                nn.ReLU(inplace=True),
+
+                                nn.BatchNorm1d(512),
+                                nn.Dropout(p=0.5, inplace=False),
+                                nn.Linear(in_features = 512, out_features=64, bias=False),
+                                nn.ReLU(inplace=True),
+                                
+                                nn.BatchNorm1d(64),
+                                nn.Dropout(p=0.5, inplace=False),
+                                nn.Linear(in_features=64, out_features=n_classes, bias=True)
+                                )
+    return model
 
 def resnet50(in_channels, n_classes):
     model = models.resnet50()
@@ -17,7 +37,27 @@ def resnet50(in_channels, n_classes):
                             
                             nn.BatchNorm1d(64),
                             nn.Dropout(p=0.5, inplace=False),
-                            nn.Linear(in_features=64, out_features=resnet50, bias=True)
+                            nn.Linear(in_features=64, out_features=n_classes, bias=True)
+                            )
+    return model
+
+
+def resnet50_gn(in_channels, n_classes):
+    model = models.resnet50()
+    model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    model.fc = nn.Sequential(nn.GroupNorm(1, 2048),  # Using GroupNorm
+                             nn.Dropout(p=0.5, inplace=False),
+                             nn.Linear(in_features=2048, out_features=512, bias=False),
+                             nn.ReLU(inplace=True),
+
+                             nn.GroupNorm(1, 512),  # Using GroupNorm
+                             nn.Dropout(p=0.5, inplace=False),
+                             nn.Linear(in_features=512, out_features=64, bias=False),
+                             nn.ReLU(inplace=True),
+                             
+                             nn.GroupNorm(1, 64),  # Using GroupNorm
+                             nn.Dropout(p=0.5, inplace=False),
+                             nn.Linear(in_features=64, out_features=n_classes, bias=True)
                             )
     return model
 
