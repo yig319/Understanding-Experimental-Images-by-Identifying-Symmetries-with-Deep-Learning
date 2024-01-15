@@ -66,7 +66,7 @@ def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, test_d
                            "valid_acc": avg_valid_acc}) 
                 
         if model_name != None:
-            torch.save(model, os.path.join(model_dir, model_name+'-epoch-{}.pt'.format(epoch_idx+1)))
+            torch.save(model.cpu(), os.path.join(model_dir, model_name+'-epoch-{}.pt'.format(epoch_idx+1)))
                 
     return history
 
@@ -117,6 +117,23 @@ def train(model, loss_func, optimizer, device, train_dl, scheduler=None, trackin
         optimizer.step()
         if scheduler:
             scheduler.step()
+
+        # if tracking:   
+        #     # record the epoch loss and accuracy:            
+        #     if test_dl:
+        #         wandb.log({'step':i, 
+        #                     "train_loss": avg_train_loss, 
+        #                     "valid_loss": avg_valid_loss,
+        #                     "train_acc": avg_train_acc, 
+        #                     "valid_acc": avg_valid_acc,
+        #                     "test_loss": avg_test_loss,
+        #                     "test_acc": avg_test_acc})
+        #     else:
+        #         wandb.log({"epoch": epoch_idx,
+        #                     "train_loss": avg_train_loss, 
+        #                     "valid_loss": avg_valid_loss,
+        #                     "train_acc": avg_train_acc, 
+        #                     "valid_acc": avg_valid_acc}) 
 
     # Find average training loss and training accuracy
     avg_train_loss = train_loss/train_data_size 
