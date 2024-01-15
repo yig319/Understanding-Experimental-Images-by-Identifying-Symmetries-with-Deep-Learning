@@ -3,26 +3,39 @@ import torch.nn as nn
 from torchvision import models
 import timm
 
-def xcit(in_channels, n_classes):
-    model = timm.create_model('xcit_large_24_p8_224', pretrained=False)
-    model.patch_embed.proj[0][0] = nn.Conv2d(in_channels, 192, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
-    model.head = nn.Sequential(nn.BatchNorm1d(2048),
-                                nn.Dropout(p=0.5, inplace=False),
-                                nn.Linear(in_features = 2048, out_features=512, bias=False),
-                                nn.ReLU(inplace=True),
-
-                                nn.BatchNorm1d(512),
-                                nn.Dropout(p=0.5, inplace=False),
-                                nn.Linear(in_features = 512, out_features=64, bias=False),
-                                nn.ReLU(inplace=True),
-                                
-                                nn.BatchNorm1d(64),
-                                nn.Dropout(p=0.5, inplace=False),
-                                nn.Linear(in_features=64, out_features=n_classes, bias=True)
-                                )
+def xcit_small(in_channels, n_classes, pretrained=False):
+    model = timm.create_model('xcit_small_12_p8_224', pretrained=pretrained)
+    model.patch_embed.proj[0][0] = nn.Conv2d(in_channels, 96, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+    model.head = nn.Linear(in_features=384, out_features=n_classes, bias=True)
     return model
 
-def resnet50(in_channels, n_classes):
+
+def xcit_medium(in_channels, n_classes, pretrained=False):
+    model = timm.create_model('xcit_medium_24_p8_224', pretrained=pretrained)
+    model.patch_embed.proj[0][0] = nn.Conv2d(in_channels, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+    model.head = nn.Linear(in_features=512, out_features=n_classes, bias=True)
+    return model
+
+def densenet161_yichen(in_channels, n_classes, pretrained=False):
+    model = models.densenet161(pretrained=pretrained)
+    model.features.conv0 = nn.Conv2d(in_channels, 96, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    model.classifier = nn.Sequential(nn.BatchNorm1d(2208),
+                            nn.Dropout(p=0.5, inplace=False),
+                            nn.Linear(in_features = 2208, out_features=512, bias=False),
+                            nn.ReLU(inplace=True),
+
+                            nn.BatchNorm1d(512),
+                            nn.Dropout(p=0.5, inplace=False),
+                            nn.Linear(in_features = 512, out_features=64, bias=False),
+                            nn.ReLU(inplace=True),
+                            
+                            nn.BatchNorm1d(64),
+                            nn.Dropout(p=0.5, inplace=False),
+                            nn.Linear(in_features=64, out_features=n_classes, bias=True)
+                            )
+    return model
+
+def resnet50_yichen(in_channels, n_classes):
     model = models.resnet50()
     model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     model.fc = nn.Sequential(nn.BatchNorm1d(2048),
@@ -42,20 +55,20 @@ def resnet50(in_channels, n_classes):
     return model
 
 
-def resnet50_gn(in_channels, n_classes):
+def resnet50_gn_yichen(in_channels, n_classes):
     model = models.resnet50()
     model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-    model.fc = nn.Sequential(nn.GroupNorm(1, 2048),  # Using GroupNorm
+    model.fc = nn.Sequential(nn.GroupNorm(1, 2048),  # Using GroupNorm to prevent error when batch=1
                              nn.Dropout(p=0.5, inplace=False),
                              nn.Linear(in_features=2048, out_features=512, bias=False),
                              nn.ReLU(inplace=True),
 
-                             nn.GroupNorm(1, 512),  # Using GroupNorm
+                             nn.GroupNorm(1, 512),  # Using GroupNorm to prevent error when batch=1
                              nn.Dropout(p=0.5, inplace=False),
                              nn.Linear(in_features=512, out_features=64, bias=False),
                              nn.ReLU(inplace=True),
                              
-                             nn.GroupNorm(1, 64),  # Using GroupNorm
+                             nn.GroupNorm(1, 64),  # Using GroupNorm to prevent error when batch=1
                              nn.Dropout(p=0.5, inplace=False),
                              nn.Linear(in_features=64, out_features=n_classes, bias=True)
                             )
@@ -219,23 +232,26 @@ class feature_pyramid_network(nn.Module):
         return p2, p3, p4, p5
 
 class fpn_resnet50_classification(nn.Module):
-    def __init__(self, n_classes):
+    def __init__(self, in_channels, n_classes):
         super(fpn_resnet50_classification, self).__init__()
-        self.model = feature_pyramid_network(Bottleneck, [3,4,6,3])
+        self.fpn = feature_pyramid_network(Bottleneck, [3,4,6,3])
+        self.fpn.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
 
-        self.classifier = nn.Sequential(  
-                        nn.BatchNorm1d(1024),
-                        nn.Dropout(p=0.5, inplace=False),
-                        nn.Linear(in_features = 1024, out_features=64, bias=False),
-                        nn.ReLU(inplace=True), 
-
-                        nn.BatchNorm1d(64),
-                        nn.Dropout(p=0.5, inplace=False),
-                        nn.Linear(in_features=64, out_features=n_classes, bias=True)
-                        )
+        self.classifier = nn.Sequential(
+                nn.BatchNorm1d(1024),
+                nn.Dropout(p=0.5, inplace=False),
+                nn.Linear(in_features = 1024, out_features=64, bias=False),
+                nn.ReLU(inplace=True),
+                
+                nn.BatchNorm1d(64),
+                nn.Dropout(p=0.5, inplace=False),
+                nn.Linear(in_features=64, out_features=n_classes, bias=True)
+                )
+        
+        
 
     def forward(self, x):
-        feature_maps = self.model(x)
+        feature_maps = self.fpn(x)
         preds = []
         for fm in feature_maps:
             fm = F.adaptive_avg_pool2d(fm, (1, 1))
