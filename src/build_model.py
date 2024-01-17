@@ -35,8 +35,8 @@ def densenet161_yichen(in_channels, n_classes, pretrained=False):
                             )
     return model
 
-def resnet50_yichen(in_channels, n_classes):
-    model = models.resnet50()
+def resnet50_yichen(in_channels, n_classes, pretrained=False):
+    model = models.resnet50(pretrained=pretrained)
     model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     model.fc = nn.Sequential(nn.BatchNorm1d(2048),
                             nn.Dropout(p=0.5, inplace=False),
@@ -55,8 +55,8 @@ def resnet50_yichen(in_channels, n_classes):
     return model
 
 
-def resnet50_gn_yichen(in_channels, n_classes):
-    model = models.resnet50()
+def resnet50_gn_yichen(in_channels, n_classes, pretrained=False):
+    model = models.resnet50(pretrained=pretrained)
     model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     model.fc = nn.Sequential(nn.GroupNorm(1, 2048),  # Using GroupNorm to prevent error when batch=1
                              nn.Dropout(p=0.5, inplace=False),
