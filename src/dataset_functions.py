@@ -13,13 +13,21 @@ import h5py
 from matplotlib import pyplot as plt
 from visualization_functions import show_images
 
+def split_train_valid(dataset, train_ratio, seed=42):
+    imagenet_size = len(dataset)
+    train_size = int(train_ratio * imagenet_size)
+    valid_size = imagenet_size - train_size
+    train_ds, valid_ds = torch.utils.data.random_split(dataset, [train_size, valid_size], 
+                                                       generator=torch.Generator().manual_seed(seed))
+    return train_ds, valid_ds
+
 def list_to_dict(lst):
     dictionary = {}
     for index, item in enumerate(lst):
         dictionary[index] = item
     return dictionary
 
-def viz_dataloader(dl, n=8, hist=True, label_converter=None):
+def viz_dataloader(dl, n=8, hist_bins=True, title=None, label_converter=None):
     batch = next(iter(dl))
     if len(batch[0]) < n: 
         raise ValueError("n is smaller than batch size, increase n")
@@ -28,7 +36,7 @@ def viz_dataloader(dl, n=8, hist=True, label_converter=None):
     if label_converter:
         for i in range(len(labels)):
             labels[i] = label_converter[labels[i]]
-    show_images(torch.permute(inputs, [0,2,3,1]).cpu().numpy(), labels=labels, hist_bins=100)            
+    show_images(torch.permute(inputs, [0,2,3,1]).cpu().numpy(), labels=labels, title=title, hist_bins=hist_bins)            
 
 
 class hdf5_dataset(Dataset):
