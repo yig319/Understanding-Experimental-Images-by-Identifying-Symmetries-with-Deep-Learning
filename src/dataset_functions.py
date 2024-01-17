@@ -12,6 +12,66 @@ from torch.utils.data import Dataset
 import h5py
 from matplotlib import pyplot as plt
 from visualization_functions import show_images
+import os
+import random
+# import cv2
+import shutil
+
+def verify_image_vector(ax, image, ts, va, vb): 
+    ts = np.array(ts)[1], np.array(ts)[0]
+    va = np.array(va)[1], np.array(va)[0]
+    vb = np.array(vb)[1], np.array(vb)[0]
+
+    ax.imshow(image)
+    
+    ax.set_ylabel('Y-axis')
+    ax.set_xlabel('X-axis')
+    
+    array = np.array([[ts[0], ts[1], va[0], va[1]]])
+    X, Y, U, V = zip(*array)
+    ax.quiver(X, Y, U, V,color='b', angles='xy', scale_units='xy', scale=1, linewidth=0.3)
+    
+    array = np.array([[ts[0], ts[1], vb[0], vb[1]]])
+    X, Y, U, V = zip(*array)
+    ax.quiver(X, Y, U, V,color='b', angles='xy', scale_units='xy', scale=1, linewidth=0.3)
+
+    plt.draw()
+
+
+def verify_image_in_hdf5_file(ds_path, n_list, group, viz=True):
+
+    symmetry_dict = {'p1': 0, 'p2': 1, 'pm': 2, 'pg': 3, 'cm': 4, 'pmm': 5, 'pmg': 6, 'pgg': 7, 'cmm': 8, 
+                        'p4': 9, 'p4m': 10, 'p4g': 11, 'p3': 12, 'p3m1': 13, 'p31m': 14, 'p6': 15, 'p6m': 16}
+
+    symmetry_inv_dict = {v: k for k, v in symmetry_dict.items()}
+
+    with h5py.File(ds_path, 'r') as h5:
+        if viz:
+            print('Total number of images in the dataset: ', len(h5[group]['data']))
+        if isinstance(n_list, int):
+           n_list = random.choices(range(len(h5[group]['data'])), k=n_list)
+        n_list = np.sort(n_list)
+        if viz:
+            print('Randomly selected images: ', n_list)
+        imgs = np.array(h5[group]['data'][n_list])
+        unit_cells = np.array(h5[group]['unit_cell'][n_list])
+        labels = np.array(h5[group]['labels'][n_list])
+        ts_list = np.array(h5[group]['translation_start_point'][n_list])
+        va_list = np.array(h5[group]['primitive_uc_vector_a'][n_list])
+        vb_list = np.array(h5[group]['primitive_uc_vector_b'][n_list])
+        VA_list = np.array(h5[group]['translation_uc_vector_a'][n_list])
+        VB_list = np.array(h5[group]['translation_uc_vector_b'][n_list])
+
+    if viz:
+        for i in range(len(n_list)):
+            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+            verify_image_vector(axes[0], unit_cells[i], ts_list[i], va_list[i], vb_list[i])
+            verify_image_vector(axes[1], imgs[i], ts_list[i], va_list[i], vb_list[i])
+            verify_image_vector(axes[2], imgs[i], ts_list[i], VA_list[i], VB_list[i])
+            plt.title(symmetry_inv_dict[labels[i]])
+            plt.show()
+    return imgs, unit_cells, labels, ts_list, va_list, vb_list, VA_list, VB_list
+
 
 def copy_h5_group(file, copy_from, copy_to, batch_size):
     with h5py.File(file, 'a') as h5:
@@ -42,7 +102,7 @@ def list_to_dict(lst):
         dictionary[index] = item
     return dictionary
 
-def viz_dataloader(dl, n=8, hist_bins=True, title=None, label_converter=None):
+def viz_dataloader(dl, n=8, hist_bins=None, title=None, label_converter=None):
     batch = next(iter(dl))
     if len(batch[0]) < n: 
         raise ValueError("n is smaller than batch size, increase n")
