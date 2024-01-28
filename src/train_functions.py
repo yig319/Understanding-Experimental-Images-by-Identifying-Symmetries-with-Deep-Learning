@@ -1,4 +1,5 @@
 import os
+import os
 import math
 import time
 import operator
@@ -21,8 +22,7 @@ import torchvision
 
 
 def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, test_dl,
-                 epochs, start=0, scheduler=None, 
-                 model_name=None, model_dir=None, tracking=False):
+                 epochs, start=0, scheduler=None, model_dir=None, tracking=False):
 
     # make directory for the model
     if model_dir and not os.path.isdir(model_dir): os.mkdir(model_dir)
@@ -65,8 +65,8 @@ def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, test_d
                            "train_acc": avg_train_acc, 
                            "valid_acc": avg_valid_acc}) 
                 
-        if model_name != None:
-            torch.save(model.cpu(), os.path.join(model_dir, model_name+'-epoch-{}.pt'.format(epoch_idx+1)))
+        if model_dir != None:
+            torch.save(model.cpu(), os.path.join(model_dir, 'epoch-{}.pt'.format(epoch_idx+1)))
                 
     return history
 
