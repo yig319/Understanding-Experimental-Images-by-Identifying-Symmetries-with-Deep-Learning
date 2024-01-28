@@ -36,12 +36,12 @@ def confusion_matrix(model, dataloader, classes, device, n_batches=1):
     print('Accuracy for these batches:', right/(right+wrong))
     return cm.astype(np.int32)
 
-def plot_cm(cm, classes, title=None, file_path=None, style='simple'):
+
+def plot_cm(cm, classes, title=None, save_file=None, style='simple'):
 
     if style == 'simple':
         fig = plt.figure(figsize=(12,10))
         ax = fig.subplots(1,1)
-        ax.set_title('Confusion Matrix of'+title)
 
         disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
         disp = disp.plot(cmap=plt.cm.Blues, ax=ax)
@@ -53,8 +53,6 @@ def plot_cm(cm, classes, title=None, file_path=None, style='simple'):
 
         fig = plt.figure(figsize=(12,10))
         ax = fig.subplots(1,1)
-        if title:
-            ax.set_title('Confusion Matrix of'+title)
 
         res = sns.heatmap(df_cm, annot=True, square=True, cmap='Blues',
                          xticklabels = classes, yticklabels=classes, fmt='g', 
@@ -68,11 +66,19 @@ def plot_cm(cm, classes, title=None, file_path=None, style='simple'):
                     linewidth = 1)
         res.axvline(x = 16.98, color = 'k',
                     linewidth = 1)
-    
-    if file_path: 
-        plt.savefig(file_path, dpi=300)
+        
+    if title != None:
+        print(title)
+        ax.set_title('Confusion Matrix of'+title)
+    else:
+        ax.set_title('Confusion Matrix')
+        
+    if save_file: 
+        plt.savefig(save_file+'.png', dpi=300)
+        plt.savefig(save_file+'.svg', dpi=300)
     plt.show()
-
+    
+    
 def parameter_analysis(classes, info_file, visualize=False, print_lens=False):
     if print_lens: print(len(classes))
         
