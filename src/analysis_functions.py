@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from IPython.display import display
 from sklearn.metrics import ConfusionMatrixDisplay
+from tqdm import tqdm
 
 # imagenet 
 def confusion_matrix(model, dataloader, classes, device, n_batches=1):
