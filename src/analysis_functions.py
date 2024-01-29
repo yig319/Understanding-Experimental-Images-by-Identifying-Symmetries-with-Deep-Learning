@@ -37,7 +37,7 @@ def confusion_matrix(model, dataloader, classes, device, n_batches=1):
     return cm.astype(np.int32)
 
 
-def plot_cm(cm, classes, title=None, save_file=None, style='simple'):
+def plot_cm(cm, classes, title=None, file_path=None, style='simple', font_size=10):
 
     if style == 'simple':
         fig = plt.figure(figsize=(12,10))
@@ -45,7 +45,9 @@ def plot_cm(cm, classes, title=None, save_file=None, style='simple'):
 
         disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
         disp = disp.plot(cmap=plt.cm.Blues, ax=ax)
-
+        for labels in disp.text_.ravel():
+            labels.set_fontsize(font_size)
+    
     if style== 'with_axis':
         df_cm = pd.DataFrame(cm)
         df_cm.index.name = 'Actual'
@@ -58,14 +60,10 @@ def plot_cm(cm, classes, title=None, save_file=None, style='simple'):
                          xticklabels = classes, yticklabels=classes, fmt='g', 
                          ax=ax, cbar_kws={'label': 'Number of Images'})
 
-        res.axhline(y = 0, color = 'k', 
-                    linewidth = 1)
-        res.axhline(y = 16.98, color = 'k',
-                    linewidth = 1)
-        res.axvline(x = 0, color = 'k',
-                    linewidth = 1)
-        res.axvline(x = 16.98, color = 'k',
-                    linewidth = 1)
+        res.axhline(y = 0, color = 'k', linewidth = 1)
+        res.axhline(y = 16.98, color = 'k', linewidth = 1)
+        res.axvline(x = 0, color = 'k', linewidth = 1)
+        res.axvline(x = 16.98, color = 'k', linewidth = 1)
         
     if title != None:
         print(title)
@@ -73,9 +71,9 @@ def plot_cm(cm, classes, title=None, save_file=None, style='simple'):
     else:
         ax.set_title('Confusion Matrix')
         
-    if save_file: 
-        plt.savefig(save_file+'.png', dpi=300)
-        plt.savefig(save_file+'.svg', dpi=300)
+    if file_path: 
+        plt.savefig(file_path+'.png', dpi=300)
+        plt.savefig(file_path+'.svg', dpi=300)
     plt.show()
     
     
