@@ -1,21 +1,83 @@
 import glob
 import random
 import os
-import time
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from tqdm import tqdm
-import wandb
 from torch.utils.data import Dataset
 import h5py
 from matplotlib import pyplot as plt
-from visualization_functions import show_images
-import os
 import random
-# import cv2
 import shutil
+from viz import show_images
+import fnmatch
+
+def parse_gitignore(gitignore_path):
+    """
+    Parses the .gitignore file and returns a list of patterns to ignore.
+
+    Parameters:
+    - gitignore_path (str): Path to the .gitignore file.
+
+    Returns:
+    - List[str]: A list of patterns to ignore.
+    """
+    patterns = []
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, 'r') as file:
+            for line in file.readlines():
+                # Strip whitespace and ignore comments
+                pattern = line.strip()
+                if pattern and not pattern.startswith('#'):
+                    patterns.append(pattern)
+    return patterns
+
+def should_ignore(path, patterns):
+    """
+    Determines if a given path matches any of the ignore patterns.
+
+    Parameters:
+    - path (str): The path to check.
+    - patterns (List[str]): The list of patterns to check against.
+
+    Returns:
+    - bool: True if the path should be ignored, False otherwise.
+    """
+    for pattern in patterns:
+        if fnmatch.fnmatch(path, pattern) or fnmatch.fnmatch(os.path.basename(path), pattern):
+            return True
+    return False
+
+def copy_directory_structure(src, dest, gitignore_path=None):
+    """
+    Copies the directory structure (folders and subfolders) from source (src) to destination (dest),
+    ignoring directories that match patterns in a .gitignore file.
+
+    Parameters:
+    - src (str): Source directory path.
+    - dest (str): Destination directory path.
+    - gitignore_path (str): Path to the .gitignore file. Optional.
+    """
+    ignore_patterns = []
+    if gitignore_path:
+        ignore_patterns = parse_gitignore(gitignore_path)
+    
+    # Ensure the source directory exists
+    if not os.path.exists(src):
+        print(f"Source directory {src} does not exist.")
+        return
+    
+    # Ensure the destination directory exists; if not, create it
+    os.makedirs(dest, exist_ok=True)
+    
+    for root, dirs, files in os.walk(src):
+        dirs[:] = [d for d in dirs if not should_ignore(os.path.join(root, d), ignore_patterns)]
+        for dir_ in dirs:
+            src_dir_path = os.path.join(root, dir_)
+            dest_dir_path = src_dir_path.replace(src, dest, 1)
+            os.makedirs(dest_dir_path, exist_ok=True)
+            print(f"Directory created: {dest_dir_path}")
+
+
 
 def verify_image_vector(ax, image, ts, va, vb): 
     ts = np.array(ts)[1], np.array(ts)[0]

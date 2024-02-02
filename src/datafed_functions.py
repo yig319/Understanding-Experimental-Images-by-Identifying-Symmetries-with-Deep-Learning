@@ -7,6 +7,11 @@ import json # For dealing with metadata
 from datafed.CommandLib import API
 import random
 
+def datafed_create_collection(collection_name, parent_id=None):
+    df_api = API()
+    coll_resp = df_api.collectionCreate(collection_name, parent_id=parent_id)
+    return coll_resp
+
 def datafed_upload(file_path, parent_id, metadata=None, wait=True):
     df_api = API()
     file_name = os.path.basename(file_path)

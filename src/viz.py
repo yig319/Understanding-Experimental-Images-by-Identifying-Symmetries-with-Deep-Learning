@@ -89,7 +89,8 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
             fig.suptitle(title, fontsize=12)
 
     if save_path:
-        plt.savefig(save_path, dpi=300)
+        plt.savefig(save_path+'svg', dpi=300)
+        plt.savefig(save_path+'png', dpi=300)
     # plt.tight_layout()
     plt.show()
     
