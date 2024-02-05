@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage.color import rgb2gray
 from skimage.transform import radon, rescale
+from viz import show_images
 
 def scale(x):
     if x.min() < 0:
@@ -32,7 +33,10 @@ def fft_transform(image, return_type='numpy'):
     if return_type == 'numpy':
         ms = np.stack(ms_list, axis=-1)
         ps = np.stack(ps_list, axis=-1)
+        ms = np.nan_to_num(ms, copy=False)
+        ps = np.nan_to_num(ps, copy=False)
         return scale(ms), scale(ps)
+        # return ms, ps
     elif return_type == 'list':
         for channel in range(image.shape[2]): 
             ms_list[channel] = scale(ms_list[channel])
@@ -71,5 +75,39 @@ def radon_transform(image):
     # return scale(sinogram)
 #     return np.expand_dims(sinogram, axis=0)
 
+def fft_radon_examples(img, title, save_path = None):
+
+    labels = ['raw image', 'fft_magnitude-0', 'fft_magnitude-1', 'fft_magnitude-2', 'fft_phase-0', 'fft_phase-1', 'fft_phase-2', 'radon']
+
+    fft_magnitude, fft_phase = fft_transform(img, return_type='numpy')
+    radon = radon_transform(img)
+    imgs_show = [img, fft_magnitude[:,:,0], fft_magnitude[:,:,1], fft_magnitude[:,:,2], 
+                fft_phase[:,:,0], fft_phase[:,:,1], fft_phase[:,:,2], radon]
+    if save_path != None:
+        save_path = f'{save_path}-fft_radon_example_images-{title}'
+    show_images(imgs_show, labels, img_per_row=8, title=title, show_colorbar=True, img_height=0.5, hist_bins=100,
+                save_path=save_path)
 
 
+# def fft_radon_example_images(file, save_path = None):
+#     outputs = []
+#     labels = []    
+    
+#     img = plt.imread(file)[:,:,:3]
+#     outputs.append(img)
+#     labels.append('original')
+    
+#     ms, ps = fft_transform(img, return_type='list')
+#     outputs += ms
+#     outputs += ps
+#     labels += ['fft_magnitude-0', 'fft_magnitude-1', 'fft_magnitude-2', 'fft_phase-0', 'fft_phase-1', 'fft_phase-2']
+    
+#     sinogram = radon_transform(img)
+#     outputs.append(sinogram)
+#     labels.append('radon')
+    
+#     title = file.split('/')[-1].split('.')[0].split('-')[-1]
+#     if save_path != None:
+#         save_path = f'{save_path}-fft_radon_example_images-{title}'
+#     show_images(outputs, labels, img_per_row=8, title=title, show_colorbar=True, img_height=0.5, 
+#                 save_path=save_path)

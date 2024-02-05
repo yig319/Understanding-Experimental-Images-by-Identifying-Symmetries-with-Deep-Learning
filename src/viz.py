@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import patheffects
 # import torch
+
 
 def trim_axes(axs, N):
     """
@@ -89,43 +91,69 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
             fig.suptitle(title, fontsize=12)
 
     if save_path:
-        plt.savefig(save_path+'svg', dpi=300)
-        plt.savefig(save_path+'png', dpi=300)
+        plt.savefig(save_path+'.svg', dpi=300)
+        plt.savefig(save_path+'.png', dpi=300)
     # plt.tight_layout()
     plt.show()
     
     
-def show_plots(ys, xs=None, labels=None, ys_fit=None, img_per_row=4, subplot_height=3, ylim=None):
-#     matplotlib.rcParams.update(matplotlib.rcParamsDefault)
-#     plt.rcParams.update(mpl.rcParamsDefault)
+def labelfigs(ax, number=None, style="wb",
+              loc="tl", string_add="", size=8,
+              text_pos="center", inset_fraction=(0.15, 0.15), **kwargs):
 
-    if type(labels) == type(None): labels = range(len(ys))
+    # initializes an empty string
+    text = ""
+
+    # Sets up various color options
+    formatting_key = {
+        "wb": dict(color="w", linewidth=.75),
+        "b": dict(color="k", linewidth=0),
+        "w": dict(color="w", linewidth=0),
+    }
+
+    # Stores the selected option
+    formatting = formatting_key[style]
+
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+
+    x_inset = (xlim[1] - xlim[0]) * inset_fraction[1]
+    y_inset = (ylim[1] - ylim[0]) * inset_fraction[0]
+
+    if loc == 'tl':
+        x, y = xlim[0] + x_inset, ylim[1] - y_inset
+    elif loc == 'tr':
+        x, y = xlim[1] - x_inset, ylim[1] - y_inset
+    elif loc == 'bl':
+        x, y = xlim[0] + x_inset, ylim[0] + y_inset
+    elif loc == 'br':
+        x, y = xlim[1] - x_inset, ylim[0] + y_inset
+    elif loc == 'ct':
+        x, y = (xlim[0] + xlim[1]) / 2, ylim[1] - y_inset
+    elif loc == 'cb':
+        x, y = (xlim[0] + xlim[1]) / 2, ylim[0] + y_inset
+    else:
+        raise ValueError(
+            "Invalid position. Choose from 'tl', 'tr', 'bl', 'br', 'ct', or 'cb'.")
+
+    text += string_add
+
+    if number is not None:
+        text += number_to_letters(number)
+
+    text_ = ax.text(x, y, text, va='center', ha='center',
+                      path_effects=[patheffects.withStroke(
+                      linewidth=formatting["linewidth"], foreground="k")],
+                      color=formatting["color"], size=size, **kwargs
+                      )
+
+    text_.set_zorder(np.inf)
+
     
-    if type(xs) == type(None):
-        xs = []
-        for y in ys:
-            xs.append(np.linspace(0, len(y), len(y)+1))            
-        
-    fig, axes = plt.subplots(len(ys)//img_per_row+1*int(len(ys)%img_per_row>0), img_per_row, 
-                             figsize=(16, subplot_height*len(ys)//img_per_row+1))    
-    trim_axes(axes, len(ys))
-    
-    for i in range(len(ys)):
-        
-        if len(ys) <= img_per_row:
-            index = i%img_per_row
-        else:
-            index = (i//img_per_row), i%img_per_row
-
-        axes[index].title.set_text(labels[i])
-        
-        im = axes[index].plot(xs[i], ys[i], marker='.')
-        
-        if type(ys_fit) != type(None):
-            im = axes[index].plot(xs[i], ys_fit[i])
-        
-        if type(ylim) != type(None):
-            axes[index].set_ylim([ylim[0], ylim[1]])
-
-    fig.tight_layout()
-    plt.show()
+def number_to_letters(num):
+    letters = ''
+    while num >= 0:
+        num, remainder = divmod(num, 26)
+        letters = chr(97 + remainder) + letters
+        num -= 1  # decrease num by 1 because we have processed the current digit
+    return letters
