@@ -100,7 +100,7 @@ def verify_image_vector(ax, image, ts, va, vb):
     plt.draw()
 
 
-def verify_image_in_hdf5_file(ds_path, n_list, group, viz=True):
+def verify_image_in_hdf5_file(ds_path, n_list, group, data_key='data', viz=True):
 
     symmetry_dict = {'p1': 0, 'p2': 1, 'pm': 2, 'pg': 3, 'cm': 4, 'pmm': 5, 'pmg': 6, 'pgg': 7, 'cmm': 8, 
                         'p4': 9, 'p4m': 10, 'p4g': 11, 'p3': 12, 'p3m1': 13, 'p31m': 14, 'p6': 15, 'p6m': 16}
@@ -109,13 +109,13 @@ def verify_image_in_hdf5_file(ds_path, n_list, group, viz=True):
 
     with h5py.File(ds_path, 'r') as h5:
         if viz:
-            print('Total number of images in the dataset: ', len(h5[group]['data']))
+            print('Total number of images in the dataset: ', len(h5[group][data_key]))
         if isinstance(n_list, int):
-           n_list = random.choices(range(len(h5[group]['data'])), k=n_list)
+           n_list = random.choices(range(len(h5[group][data_key])), k=n_list)
         n_list = np.sort(n_list)
         if viz:
             print('Randomly selected images: ', n_list)
-        imgs = np.array(h5[group]['data'][n_list])
+        imgs = np.array(h5[group][data_key][n_list])
         unit_cells = np.array(h5[group]['unit_cell'][n_list])
         labels = np.array(h5[group]['labels'][n_list])
         ts_list = np.array(h5[group]['translation_start_point'][n_list])
