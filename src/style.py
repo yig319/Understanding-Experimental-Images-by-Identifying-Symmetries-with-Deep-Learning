@@ -28,6 +28,7 @@ def set_style(name="default"):
             plt.rcParams['ytick.direction'] = 'in'
             plt.rcParams['xtick.top'] = True
             plt.rcParams['ytick.right'] = True
+            plt.rcParams['figure.dpi'] = 300 
             print(f"{name} set for matplotlib")
         except:
             pass
@@ -65,3 +66,4 @@ def set_style(name="default"):
         plt.rcParams['legend.frameon'] = False
         plt.rcParams['svg.fonttype'] = 'none'
         plt.rcParams['axes.titlesize'] = 8
+        plt.rcParams['figure.dpi'] = 500
