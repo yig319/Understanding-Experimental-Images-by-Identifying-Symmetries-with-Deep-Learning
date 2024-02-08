@@ -75,7 +75,7 @@ def radon_transform(image):
     # return scale(sinogram)
 #     return np.expand_dims(sinogram, axis=0)
 
-def fft_radon_examples(img, title, save_path = None):
+def fft_radon_examples(img, title, axes=None, save_path = None):
 
     labels = ['raw image', 'fft_magnitude-0', 'fft_magnitude-1', 'fft_magnitude-2', 'fft_phase-0', 'fft_phase-1', 'fft_phase-2', 'radon']
 
@@ -85,6 +85,8 @@ def fft_radon_examples(img, title, save_path = None):
                 fft_phase[:,:,0], fft_phase[:,:,1], fft_phase[:,:,2], radon]
     if save_path != None:
         save_path = f'{save_path}-fft_radon_example_images-{title}'
+        
+    if 
     show_images(imgs_show, labels, img_per_row=8, title=title, show_colorbar=True, img_height=0.5, hist_bins=100,
                 save_path=save_path)
 

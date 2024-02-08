@@ -3,6 +3,31 @@ import numpy as np
 from matplotlib import patheffects
 # import torch
 
+def create_axes_grid(n_plots, n_per_row, plot_height, n_rows=None, figsize='auto'):
+    """
+    Create a grid of axes.
+
+    Args:
+        n_plots: Number of plots.
+        n_per_row: Number of plots per row.
+        plot_height: Height of each plot.
+        n_rows: Number of rows. If None, it is calculated from n_plots and n_per_row.
+        
+    Returns:
+        axes: Axes object.
+    """
+    
+    if figsize == 'auto':
+        figsize = (16, plot_height*n_plots//n_per_row+1)
+    elif isinstance(figsize, tuple):
+        pass
+    elif figsize != None:
+        raise ValueError("figsize must be a tuple or 'auto'")
+    
+    fig, axes = plt.subplots(n_plots//n_per_row+1*int(n_plots%n_per_row>0), n_per_row, figsize=figsize)
+    trim_axes(axes, n_plots)
+    return fig, axes
+
 
 def trim_axes(axs, N):
     """
@@ -13,8 +38,9 @@ def trim_axes(axs, N):
         ax.remove()
     return axs[:N]
 
+
 def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12, title=None, show_colorbar=False, 
-                clim=3, cmap='viridis', scale_0_1=False, hist_bins=None, show_axis=False, save_path=None):
+                clim=3, cmap='viridis', scale_0_1=False, hist_bins=None, show_axis=False, axes=None, save_path=None):
     
     '''
     Plots multiple images in grid.
@@ -48,8 +74,9 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
     n = 1
     if hist_bins: n +=1
         
-    fig, axes = plt.subplots(n*len(images)//img_per_row+1*int(len(images)%img_per_row>0), img_per_row, 
-                             figsize=(16, n*h*len(images)//img_per_row+1), constrained_layout=True)
+    if axes == None:
+        fig, axes = create_axes_grid(len(images), img_per_row, img_height, n_rows=None, figsize='auto')
+        
     trim_axes(axes, len(images))
 
     for i, img in enumerate(images):
@@ -90,11 +117,13 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
         if title:
             fig.suptitle(title, fontsize=12)
 
-    if save_path:
+    if save_path and axes != None:
         plt.savefig(save_path+'.svg', dpi=300)
         plt.savefig(save_path+'.png', dpi=300)
     # plt.tight_layout()
-    plt.show()
+    
+    if axes != None:
+        plt.show()
     
     
 def labelfigs(ax, number=None, style="wb",
