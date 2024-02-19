@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import patheffects
 # import torch
+from NormalizeData import NormalizeData
 
 def create_axes_grid(n_plots, n_per_row, plot_height, n_rows=None, figsize='auto'):
     """
@@ -40,7 +41,7 @@ def trim_axes(axs, N):
 
 
 def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12, title=None, show_colorbar=False, 
-                clim=3, cmap='viridis', scale_0_1=False, hist_bins=None, show_axis=False, axes=None, save_path=None):
+                clim=3, cmap='viridis', scale_range=False, hist_bins=None, show_axis=False, axes=None, save_path=None):
     
     '''
     Plots multiple images in grid.
@@ -52,7 +53,7 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
     show_colorbar: show colorbar;
     clim: int or list of int, value of standard deviation of colorbar range;
     cmap: colormap;
-    scale_0_1: scale image to 0~1;
+    scale_range: scale image to a range, default is False, if True, scale to 0-1, if a tuple, scale to the range;
     hist_bins: number of bins for histogram;
     show_axis: show axis
     '''
@@ -61,44 +62,44 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
     if type(clim) == list:
         assert len(images) == len(clim), "length of clims is not matched with number of images"
 
-    def scale(x):
-        if x.min() < 0:
-            return (x - x.min()) / (x.max() - x.min())
-        else:
-            return x/(x.max() - x.min())
-    
     h = images[0].shape[1] // images[0].shape[0]*img_height + 1
     if not labels:
         labels = range(len(images))
         
-    n = 1
-    if hist_bins: n +=1
+    if isinstance(axes, type(None)):
+        if hist_bins: # add a row for histogram
+            fig, axes = create_axes_grid(len(images)*2, img_per_row, img_height*2, n_rows=None, figsize='auto')
+        else:
+            fig, axes = create_axes_grid(len(images), img_per_row, img_height, n_rows=None, figsize='auto')
         
-    if axes == None:
-        fig, axes = create_axes_grid(len(images), img_per_row, img_height, n_rows=None, figsize='auto')
-        
-    trim_axes(axes, len(images))
+    axes = axes.flatten()
+    if hist_bins:
+        trim_axes(axes, len(images)*2)
+    else:
+        trim_axes(axes, len(images))
 
-    for i, img in enumerate(images):
+    for index, img in enumerate(images):
         
 #         if torch.is_tensor(x_tensor):
 #             if img.requires_grad: img = img.detach()
 #             img = img.numpy()
             
-        if scale_0_1: img = scale(img)
-        
-        if len(images) <= img_per_row and not hist_bins:
-            index = i%img_per_row
-        else:
-            index = (i//img_per_row)*n, i%img_per_row
+        if isinstance(scale_range, bool): 
+            if scale_range: img = NormalizeData(img)
+                    
+        # if len(images) <= img_per_row and not hist_bins:
+        #     index = i%img_per_row
+        # else:
+        #     index = (i//img_per_row)*n, i%img_per_row
+        # print(i, index)
 
-        axes[index].set_title (labels[i], fontsize=label_size)
+        axes[index].set_title (labels[index], fontsize=label_size)
         im = axes[index].imshow(img, cmap=cmap)
 
         if show_colorbar:
             m, s = np.mean(img), np.std(img) 
             if type(clim) == list:
-                im.set_clim(m-clim[i]*s, m+clim[i]*s) 
+                im.set_clim(m-clim[index]*s, m+clim[i]*s) 
             else:
                 im.set_clim(m-clim*s, m+clim*s) 
 
@@ -111,19 +112,20 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
             axes[index].axis('off')
 
         if hist_bins:
-            index_hist = (i//img_per_row)*n+1, i%img_per_row
+            index_hist = index+img_per_row
             h = axes[index_hist].hist(img.flatten(), bins=hist_bins)
 
         if title:
             fig.suptitle(title, fontsize=12)
+    plt.tight_layout()
 
-    if save_path and axes != None:
-        plt.savefig(save_path+'.svg', dpi=300)
-        plt.savefig(save_path+'.png', dpi=300)
-    # plt.tight_layout()
+    # if save_path and isinstance(axes, type(None)): # this is not effective because axes are defined after the function is called
+    #     plt.savefig(save_path+'.svg', dpi=300)
+    #     plt.savefig(save_path+'.png', dpi=300)
     
-    if axes != None:
-        plt.show()
+    # print(axes)
+    # if isinstance(axes, type(None)): # this is not effective because axes are defined after the function is called
+    #     plt.show()
     
     
 def labelfigs(ax, number=None, style="wb",

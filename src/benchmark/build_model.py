@@ -16,7 +16,7 @@ def xcit_medium(in_channels, n_classes, pretrained=False):
     model.head = nn.Linear(in_features=512, out_features=n_classes, bias=True)
     return model
 
-def densenet161_yichen(in_channels, n_classes, pretrained=False):
+def densenet161_(in_channels, n_classes, pretrained=False):
     model = models.densenet161(pretrained=pretrained)
     model.features.conv0 = nn.Conv2d(in_channels, 96, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     model.classifier = nn.Sequential(nn.BatchNorm1d(2208),
@@ -35,7 +35,7 @@ def densenet161_yichen(in_channels, n_classes, pretrained=False):
                             )
     return model
 
-def resnet50_yichen(in_channels, n_classes, pretrained=False):
+def resnet50_(in_channels, n_classes, pretrained=False):
     model = models.resnet50(pretrained=pretrained)
     model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     model.fc = nn.Sequential(nn.BatchNorm1d(2048),
@@ -55,7 +55,7 @@ def resnet50_yichen(in_channels, n_classes, pretrained=False):
     return model
 
 
-def resnet50_gn_yichen(in_channels, n_classes, pretrained=False):
+def resnet50_gn_(in_channels, n_classes, pretrained=False):
     model = models.resnet50(pretrained=pretrained)
     model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     model.fc = nn.Sequential(nn.GroupNorm(1, 2048),  # Using GroupNorm to prevent error when batch=1

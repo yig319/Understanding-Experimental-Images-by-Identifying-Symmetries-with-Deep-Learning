@@ -14,14 +14,15 @@ class Trainer:
         model: torch.nn.Module,
         train_dl: DataLoader,
         valid_dl: DataLoader,
-        test_dl: DataLoader,
-        loss_func: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        scheduler: torch.optim.lr_scheduler,
-        gpu_id: torch.device,
-        save_every: int,
-        model_path: str,
+        test_dl: DataLoader = None,
+        loss_func: torch.nn.Module = nn.CrossEntropyLoss(),
+        optimizer: torch.optim.Optimizer = None,
+        scheduler: torch.optim.lr_scheduler = None,
+        gpu_id: torch.device = torch.device('cpu'),
+        save_every: int = 10,
+        model_path: str = None,
     ) -> None:
+        
         self.gpu_id = gpu_id
         self.model = model.to(gpu_id)
         self.train_dl = train_dl
@@ -62,25 +63,49 @@ class Trainer:
             self.model.eval()
             
         b_sz = len(next(iter(dataloder))[0])
-        # print(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(dataloder)}")
-        # dataloder.sampler.set_epoch(epoch)
-        for inputs, targets in tqdm(dataloder):
-            inputs = inputs.to(self.gpu_id)
-            targets = targets.to(self.gpu_id)
-            batch_loss, output = self._run_batch(inputs, targets, mode=mode)
-            
-            # Compute the total loss for the batch and add it to train_loss
-            epoch_loss += batch_loss * inputs.size(0)
-            
-            # Compute the accuracy
-            ret, predictions = torch.max(output.data, 1)
-            correct_counts = predictions.eq(targets.data.view_as(predictions))
 
-            # Convert correct_counts to float and then compute the mean
-            acc = torch.mean(correct_counts.type(torch.FloatTensor))
+        if mode in ['valid', 'test']:
+            with torch.no_grad():
+                # print(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(dataloder)}")
+                # dataloder.sampler.set_epoch(epoch)
+                for inputs, targets in tqdm(dataloder):
+                    inputs = inputs.to(self.gpu_id)
+                    targets = targets.to(self.gpu_id)
+                    batch_loss, output = self._run_batch(inputs, targets, mode=mode)
+                    
+                    # Compute the total loss for the batch and add it to train_loss
+                    epoch_loss += batch_loss * inputs.size(0)
+                    
+                    # Compute the accuracy
+                    ret, predictions = torch.max(output.data, 1)
+                    correct_counts = predictions.eq(targets.data.view_as(predictions))
 
-            # Compute total accuracy in the whole batch and add to train_acc
-            epoch_acc += acc.item() * inputs.size(0)
+                    # Convert correct_counts to float and then compute the mean
+                    acc = torch.mean(correct_counts.type(torch.FloatTensor))
+
+                    # Compute total accuracy in the whole batch and add to train_acc
+                    epoch_acc += acc.item() * inputs.size(0)
+        else:
+            # print(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(dataloder)}")
+            # dataloder.sampler.set_epoch(epoch)
+            for inputs, targets in tqdm(dataloder):
+                inputs = inputs.to(self.gpu_id)
+                targets = targets.to(self.gpu_id)
+                batch_loss, output = self._run_batch(inputs, targets, mode=mode)
+                
+                # Compute the total loss for the batch and add it to train_loss
+                epoch_loss += batch_loss * inputs.size(0)
+                
+                # Compute the accuracy
+                ret, predictions = torch.max(output.data, 1)
+                correct_counts = predictions.eq(targets.data.view_as(predictions))
+
+                # Convert correct_counts to float and then compute the mean
+                acc = torch.mean(correct_counts.type(torch.FloatTensor))
+
+                # Compute total accuracy in the whole batch and add to train_acc
+                epoch_acc += acc.item() * inputs.size(0)
+
             
         # Find average training loss and training accuracy
         avg_loss = epoch_loss/len(dataloder.dataset) 
@@ -121,7 +146,7 @@ class Trainer:
             if self.test_dl != None:
                 self._run_epoch(epoch, self.test_dl, mode='test', tracking=tracking)
                 
-            # if self.gpu_id == 0 and epoch % self.save_every == 0 and self.model_path:
+            # if self.gpu_id.index == 0 and epoch % self.save_every == 0 and self.model_path:
                 # self._save_checkpoint(epoch)
                 
     def valid(self, tracking: bool=False):
