@@ -1,7 +1,7 @@
 # saved results and models
 datasets/
 saved_models/
-# *MNIST*
+*MNIST*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
