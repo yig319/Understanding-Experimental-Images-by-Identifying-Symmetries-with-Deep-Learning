@@ -24,7 +24,8 @@ def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, test_d
                  epochs, start=0, scheduler=None, model_dir=None, tracking=False):
 
     # make directory for the model
-    if model_dir and not os.path.isdir(model_dir): os.mkdir(model_dir)
+    if model_dir and not os.path.isdir(model_dir): 
+        os.mkdir(model_dir)
 
     history = []
     
@@ -117,22 +118,9 @@ def train(model, loss_func, optimizer, device, train_dl, scheduler=None, trackin
         if scheduler:
             scheduler.step()
 
-        # if tracking:   
-        #     # record the epoch loss and accuracy:            
-        #     if test_dl:
-        #         wandb.log({'step':i, 
-        #                     "train_loss": avg_train_loss, 
-        #                     "valid_loss": avg_valid_loss,
-        #                     "train_acc": avg_train_acc, 
-        #                     "valid_acc": avg_valid_acc,
-        #                     "test_loss": avg_test_loss,
-        #                     "test_acc": avg_test_acc})
-        #     else:
-        #         wandb.log({"epoch": epoch_idx,
-        #                     "train_loss": avg_train_loss, 
-        #                     "valid_loss": avg_valid_loss,
-        #                     "train_acc": avg_train_acc, 
-        #                     "valid_acc": avg_valid_acc}) 
+        if tracking:   
+            wandb.log({ "train_loss": loss.item(), 
+                        "train_acc": acc.item()}) 
 
     # Find average training loss and training accuracy
     avg_train_loss = train_loss/train_data_size 
@@ -142,7 +130,7 @@ def train(model, loss_func, optimizer, device, train_dl, scheduler=None, trackin
     return avg_train_loss, avg_train_acc
 
 
-def valid(model, loss_func, device, valid_dl, tracking=False):
+def valid(model, loss_func, device, valid_dl, task_label='valid', tracking=False):
 
     valid_data_size = len(valid_dl.dataset)
 
@@ -183,8 +171,16 @@ def valid(model, loss_func, device, valid_dl, tracking=False):
             acc = torch.mean(correct_counts.type(torch.FloatTensor))
 
             # Compute total accuracy in the whole batch and add to valid_acc
-            valid_acc += acc.item() * inputs.size(0)     
+            valid_acc += acc.item() * inputs.size(0)  
             
+            if tracking: 
+                if task_label == 'valid':
+                    wandb.log({ "valid_loss": loss.item(), 
+                                "valid_acc": acc.item()})
+                elif task_label == 'test':
+                    wandb.log({ "test_loss": loss.item(), 
+                                "test_acc": acc.item()})  
+                    
     # Find average training loss and training accuracy
     avg_valid_loss = valid_loss/valid_data_size 
     avg_valid_acc = valid_acc/float(valid_data_size)

@@ -6,18 +6,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage.color import rgb2gray
 from skimage.transform import radon, rescale
+import sys
+sys.path.append('../utils/')
 from viz import show_images
-
-def scale(x):
-    if x.min() < 0:
-        return (x - x.min()) / (x.max() - x.min())
-    else:
-        return x/(x.max() - x.min())
+from NormalizeData import NormalizeData
     
 def log_scale(fft_real):
     fft_real_log = np.log(np.clip(fft_real, 1e-5,None))
     fft_real_log[fft_real_log == float('-inf')] = 0
-    return scale(fft_real_log)
+    return NormalizeData(fft_real_log)
 
 def fft_transform(image, return_type='numpy'):
     ms_list, ps_list = [], []
@@ -25,9 +22,9 @@ def fft_transform(image, return_type='numpy'):
         img_fft = np.fft.fft2(image[:,:,channel])
         img_fft_shift = np.fft.fftshift(img_fft)
         
-        ms = scale(np.log1p(np.abs(img_fft_shift)))
+        ms = NormalizeData(np.log1p(np.abs(img_fft_shift)))
         ms_list.append(ms)
-        ps = scale(np.angle(img_fft_shift))
+        ps = NormalizeData(np.angle(img_fft_shift))
         ps_list.append(np.angle(img_fft_shift))
         
     if return_type == 'numpy':
@@ -35,12 +32,12 @@ def fft_transform(image, return_type='numpy'):
         ps = np.stack(ps_list, axis=-1)
         ms = np.nan_to_num(ms, copy=False)
         ps = np.nan_to_num(ps, copy=False)
-        return scale(ms), scale(ps)
+        return NormalizeData(ms), NormalizeData(ps)
         # return ms, ps
     elif return_type == 'list':
         for channel in range(image.shape[2]): 
-            ms_list[channel] = scale(ms_list[channel])
-            ps_list[channel] = scale(ps_list[channel])
+            ms_list[channel] = NormalizeData(ms_list[channel])
+            ps_list[channel] = NormalizeData(ps_list[channel])
         return ms_list, ps_list
         
     # image = torch.tensor(image)
@@ -61,6 +58,7 @@ def radon_transform(image):
     # Perform the Radon transform
     sinogram = radon(image_gray, theta=theta, circle=True)
     return (sinogram/255).astype(np.float32)
+
     # img = np.copy(image)
     # if not isinstance(image, np.ndarray):
     #     img = img.numpy()
@@ -83,12 +81,13 @@ def fft_radon_examples(img, title, axes=None, save_path = None):
     radon = radon_transform(img)
     imgs_show = [img, fft_magnitude[:,:,0], fft_magnitude[:,:,1], fft_magnitude[:,:,2], 
                 fft_phase[:,:,0], fft_phase[:,:,1], fft_phase[:,:,2], radon]
+    # for a in imgs_show:
+        # print(np.min(a), np.max(a))
     if save_path != None:
         save_path = f'{save_path}-fft_radon_example_images-{title}'
         
-    if 
-    show_images(imgs_show, labels, img_per_row=8, title=title, show_colorbar=True, img_height=0.5, hist_bins=100,
-                save_path=save_path)
+    show_images(imgs_show, labels, img_per_row=8, title=title, img_height=0.5, hist_bins=20, 
+                show_colorbar=True, axes=axes, save_path=save_path)
 
 
 # def fft_radon_example_images(file, save_path = None):

@@ -1,4 +1,5 @@
 # import modules
+import os
 import pandas as pd
 import numpy as np
 import torch
@@ -7,6 +8,7 @@ import seaborn as sns
 from IPython.display import display
 from sklearn.metrics import ConfusionMatrixDisplay
 from tqdm import tqdm
+import sys
 from viz import labelfigs
 from style import set_style
 
@@ -35,7 +37,7 @@ def confusion_matrix(model, dataloader, classes, device, n_batches=1):
         for j in range(cm.shape[1]):
             if i == j: right+=cm[i,j]
             if i != j: wrong+=cm[i,j]
-    print('Accuracy for these batches:', right/(right+wrong))
+    print(f'Accuracy for these batches: {right/(right+wrong)*100}%')
     return cm.astype(np.int32)
 
 
@@ -85,10 +87,13 @@ def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple',
     if title != None:
         ax.set_title(title)
         
-    # if file_path: 
-    #     plt.savefig(file_path+'.png', dpi=300)
-    #     plt.savefig(file_path+'.svg', dpi=300)
-    # plt.show()
+    if file_path and ax == None:
+        if not os.path.isdir(file_path):
+            os.mkdir(file_path)
+            
+        plt.savefig(file_path+'.png', dpi=300)
+        plt.savefig(file_path+'.svg', dpi=300)
+        plt.show()
     
     
 def parameter_analysis(classes, info_file, visualize=False, print_lens=False):
@@ -154,6 +159,7 @@ def most_confused(model, batch, t, p, classes, device, k=5):
     labels = labels.to(device)
     model = model.to(device)
 
+    t_n, p_n = classes.index(t), classes.index(p)
     data = data[torch.where(labels==t_n)]
     labels = labels[torch.where(labels==t_n)]
     pred_label = 0

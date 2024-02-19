@@ -13,10 +13,11 @@ import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
+from build_model import resnet50_yichen
 
-from build_model import resnet50_yichen 
-from dataset_functions import split_train_valid, list_to_dict, viz_dataloader, hdf5_dataset
-
+import sys
+sys.path.append('../') 
+from h5_dataset import hdf5_dataset
 
 def ddp_setup(rank, world_size):
     """
