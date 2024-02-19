@@ -148,8 +148,8 @@ class Trainer_ddp:
 
 def prepare_dataloader(batch_size):
     
-    train_ds = hdf5_dataset('../../datasets/imagenet_atom_noise_v4_rot_10m_100k_subset.h5', folder='imagenet', transform=transforms.ToTensor())
-    train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=False, num_workers=4,
+    train_ds = hdf5_dataset('/scratch/yg446/imagenet_atom_noise_v4_rot_10m_100k_subset.h5', folder='imagenet', transform=transforms.ToTensor())
+    train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=False, num_workers=1,
                           sampler=DistributedSampler(train_ds))
     return train_dl, None, None
 

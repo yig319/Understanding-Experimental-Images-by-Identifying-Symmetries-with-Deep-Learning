@@ -50,7 +50,7 @@ class Trainer:
         return batch_loss, output
 
     def _run_epoch(self, epoch, dataloder, mode='train', tracking=False):
-                
+                '
         epoch_loss = 0.0
         epoch_acc = 0.0
         
