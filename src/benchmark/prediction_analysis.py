@@ -57,7 +57,7 @@ def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple',
     plt.rcParams['ytick.right'] = False
     
     if cm_style == 'simple':
-        print(ax)
+        # print(ax)
         disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
         disp = disp.plot(cmap=plt.cm.Blues, ax=ax)
         
