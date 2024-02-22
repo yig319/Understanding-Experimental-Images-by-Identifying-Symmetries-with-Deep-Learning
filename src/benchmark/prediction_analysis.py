@@ -45,11 +45,14 @@ def confusion_matrix(model, dataloader, classes, device, n_batches=1):
 def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple', fig_index=None, font_size=None, figsize=None, fig_style='notebook'):
 
     if isinstance(ax, type(None)):
+        show = True
         set_style(fig_style)
         if figsize != None:
             fig, ax = plt.subplots(1, 1, figsize=figsize)
         else:
             fig, ax = plt.subplots(1, 1)
+    else:
+        show = False
         
     plt.rcParams['xtick.top'] = False
     plt.rcParams['xtick.bottom'] = False
@@ -89,12 +92,14 @@ def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple',
     if title != None:
         ax.set_title(title)
         
-    if file_path and ax == None:
-        if not os.path.isdir(file_path):
-            os.mkdir(file_path)
-            
-        plt.savefig(file_path+'.png', dpi=300)
-        plt.savefig(file_path+'.svg', dpi=300)
+    if show:
+        if file_path:
+            if not os.path.isdir(file_path):
+                os.mkdir(file_path)
+                
+            plt.savefig(file_path+'.png', dpi=300)
+            plt.savefig(file_path+'.svg', dpi=300)
+
         plt.show()
     
     
