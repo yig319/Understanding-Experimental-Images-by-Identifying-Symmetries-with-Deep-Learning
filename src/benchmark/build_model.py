@@ -35,8 +35,8 @@ def densenet161_(in_channels, n_classes, pretrained=False):
                             )
     return model
 
-def resnet50_(in_channels, n_classes, pretrained=False):
-    model = models.resnet50(pretrained=pretrained)
+def resnet50_(in_channels, n_classes, weights=None):
+    model = models.resnet50(weights=None)
     model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     model.fc = nn.Sequential(nn.BatchNorm1d(2048),
                             nn.Dropout(p=0.5, inplace=False),
