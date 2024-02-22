@@ -8,7 +8,8 @@ import seaborn as sns
 from IPython.display import display
 from sklearn.metrics import ConfusionMatrixDisplay
 from tqdm import tqdm
-import sys
+# import sys
+# sys.path.append('../utils/')
 from viz import labelfigs
 from style import set_style
 
@@ -43,7 +44,7 @@ def confusion_matrix(model, dataloader, classes, device, n_batches=1):
 
 def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple', fig_index=None, font_size=None, figsize=None, fig_style='notebook'):
 
-    if ax == None:
+    if isinstance(ax, type(None)):
         set_style(fig_style)
         if figsize != None:
             fig, ax = plt.subplots(1, 1, figsize=figsize)
@@ -56,6 +57,7 @@ def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple',
     plt.rcParams['ytick.right'] = False
     
     if cm_style == 'simple':
+        print(ax)
         disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
         disp = disp.plot(cmap=plt.cm.Blues, ax=ax)
         

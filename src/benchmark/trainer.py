@@ -1,153 +1,179 @@
-import os
-import time
 from tqdm import tqdm
-import wandb
+from typing import Callable, List
+import os
+import shutil
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torchvision import datasets, transforms, models
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+import wandb
+
+def accuracy(outputs, labels):
+    _, preds = torch.max(outputs, 1)
+    return torch.sum(preds == labels).item() / len(labels)
+
 
 class Trainer:
     def __init__(
         self,
         model: torch.nn.Module,
-        train_dl: DataLoader,
-        valid_dl: DataLoader,
-        test_dl: DataLoader = None,
-        loss_func: torch.nn.Module = nn.CrossEntropyLoss(),
-        optimizer: torch.optim.Optimizer = None,
-        scheduler: torch.optim.lr_scheduler = None,
-        gpu_id: torch.device = torch.device('cpu'),
-        save_every: int = 10,
-        model_path: str = None,
+        loss_func: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        metrics: List[Callable],
+        scheduler: torch.optim.lr_scheduler._LRScheduler,
+        device: torch.device,
+        save_every: int,
+        model_path: str,
+        early_stopping_patience: int = None,
     ) -> None:
-        
-        self.gpu_id = gpu_id
-        self.model = model.to(gpu_id)
-        self.train_dl = train_dl
-        self.valid_dl = valid_dl
-        self.test_dl = test_dl
+        self.device = device
+        self.model = model.to(device)
         self.loss_func = loss_func
         self.optimizer = optimizer
+        self.metrics = metrics
         self.scheduler = scheduler
         self.save_every = save_every
         self.model_path = model_path
+        self.early_stopping_patience = early_stopping_patience
+        self.best_metric = None
+        self.epochs_without_improvement = 0
 
-    def _run_batch(self, source, targets, mode='train'):
-        if mode == 'train':
-            self.optimizer.zero_grad()
-            
-        output = self.model(source)
-        loss = self.loss_func(output, targets)
-        batch_loss = loss.item()
-        
-        if mode == 'train':
-            loss.backward()
-            self.optimizer.step()
-            if self.scheduler:
-                self.scheduler.step()
+    def train(self, train_dl, epochs, valid_dl=None, cv_dl=None, tracking=False):
+        for epoch in range(epochs):
+            print(f"Epoch {epoch+1}/{epochs}")
+            self.run_epoch(train_dl, mode='train', tracking=tracking)
+            if valid_dl:
+                early_stop = self.run_epoch(valid_dl, mode='valid', tracking=tracking)
+                if cv_dl:
+                    _ = self.run_epoch(cv_dl, mode='valid', tracking=tracking)
+                if early_stop:
+                    print("Early stopping triggered.")
+                    break 
                 
-        return batch_loss, output
+            if self.save_every and (epoch + 1) % self.save_every == 0:
+                self.save_model(epoch + 1)
 
-    def _run_epoch(self, epoch, dataloder, mode='train', tracking=False):
-                '
-        epoch_loss = 0.0
-        epoch_acc = 0.0
-        
+                
+    def validate(self, valid_dl, tracking=False):
+        self.run_epoch(valid_dl, mode='valid', tracking=tracking)
+
+    def run_epoch(self, data_loader, mode='train', tracking=False):
         if mode == 'train':
             self.model.train()
-        if mode == 'valid':
-            self.model.eval()
-        if mode == 'test':
-            self.model.eval()
-            
-        b_sz = len(next(iter(dataloder))[0])
-
-        if mode in ['valid', 'test']:
-            with torch.no_grad():
-                # print(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(dataloder)}")
-                # dataloder.sampler.set_epoch(epoch)
-                for inputs, targets in tqdm(dataloder):
-                    inputs = inputs.to(self.gpu_id)
-                    targets = targets.to(self.gpu_id)
-                    batch_loss, output = self._run_batch(inputs, targets, mode=mode)
-                    
-                    # Compute the total loss for the batch and add it to train_loss
-                    epoch_loss += batch_loss * inputs.size(0)
-                    
-                    # Compute the accuracy
-                    ret, predictions = torch.max(output.data, 1)
-                    correct_counts = predictions.eq(targets.data.view_as(predictions))
-
-                    # Convert correct_counts to float and then compute the mean
-                    acc = torch.mean(correct_counts.type(torch.FloatTensor))
-
-                    # Compute total accuracy in the whole batch and add to train_acc
-                    epoch_acc += acc.item() * inputs.size(0)
         else:
-            # print(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(dataloder)}")
-            # dataloder.sampler.set_epoch(epoch)
-            for inputs, targets in tqdm(dataloder):
-                inputs = inputs.to(self.gpu_id)
-                targets = targets.to(self.gpu_id)
-                batch_loss, output = self._run_batch(inputs, targets, mode=mode)
-                
-                # Compute the total loss for the batch and add it to train_loss
-                epoch_loss += batch_loss * inputs.size(0)
-                
-                # Compute the accuracy
-                ret, predictions = torch.max(output.data, 1)
-                correct_counts = predictions.eq(targets.data.view_as(predictions))
+            self.model.eval()
 
-                # Convert correct_counts to float and then compute the mean
-                acc = torch.mean(correct_counts.type(torch.FloatTensor))
+        data_size = len(data_loader.dataset)
+        total_loss = 0.0
+        metric_values = {metric.__name__: 0.0 for metric in self.metrics}
 
-                # Compute total accuracy in the whole batch and add to train_acc
-                epoch_acc += acc.item() * inputs.size(0)
+        for i, batch in enumerate(tqdm(data_loader)):
+            loss, batch_metrics = self.run_batch(batch, mode)
+            total_loss += loss * batch[0].size(0)
+            for metric_name, metric_value in batch_metrics.items():
+                metric_values[metric_name] += metric_value * batch[0].size(0)
 
-            
-        # Find average training loss and training accuracy
-        avg_loss = epoch_loss/len(dataloder.dataset) 
-        avg_acc = epoch_acc/float(len(dataloder.dataset))
+            if tracking:
+                self.log_wandb({f"{mode}_loss": loss, **batch_metrics})
 
-        print(f"{mode} Loss: {avg_loss:.4f}, {mode} Accuracy: {avg_acc*100:.2f}%")
+        avg_loss = total_loss / data_size
+        avg_metrics = {metric: value / data_size for metric, value in metric_values.items()}
+        print(f"{mode.capitalize()}: Loss: {avg_loss:.4f}, " + ", ".join([f"{metric}: {value * 100:.4f}%" for metric, value in avg_metrics.items()]))
 
-        if tracking:
-            self._wandb_log(epoch, avg_loss, avg_acc, mode)
-            
+        if mode == 'valid' and self.early_stopping_patience is not None:
+            primary_metric = list(self.metrics)[0].__name__  # Assuming the first metric is the primary one for early stopping
+            if self.best_metric is None or avg_metrics[primary_metric] > self.best_metric:
+                self.best_metric = avg_metrics[primary_metric]
+                self.epochs_without_improvement = 0
+            else:
+                self.epochs_without_improvement += 1
+                if self.epochs_without_improvement >= self.early_stopping_patience:
+                    return True  # Indicate early stopping
 
-    def _save_checkpoint(self, epoch):
-        ckp = self.model.module.state_dict()
-        PATH = f"{self.model_path}epoch_{epoch}.pt"
-        torch.save(ckp, PATH)
-        print(f"Epoch {epoch} | Training checkpoint saved at {PATH}")
-        
-    def _wandb_log(self, epoch, avg_loss, avg_acc, mode):
-        # record the epoch loss and accuracy:            
-        wandb.log({"epoch": epoch,
-                    f"{mode}_loss": avg_loss, 
-                    f"{mode}_acc": avg_acc}) 
+    def run_batch(self, batch, mode):
+        inputs = batch[0].to(self.device).float()
+        labels = batch[1].to(self.device).long()
 
-    def train(self, max_epochs: int, tracking: bool=False, start_epoch: int=1):
-        
-        if tracking:   
-            wandb.watch(self.model, log_freq=100)
-        
-        if self.model_path and not os.path.isdir(self.model_path): os.mkdir(self.model_path)
-        for epoch in range(start_epoch, max_epochs+start_epoch):
-            
-            print(f"Epoch: {epoch}/{max_epochs+start_epoch-1}:")
+        if mode == 'train':
+            self.optimizer.zero_grad()
 
-            self._run_epoch(epoch, self.train_dl, mode='train', tracking=tracking)
-                
-            if self.valid_dl != None:
-                self._run_epoch(epoch, self.valid_dl, mode='valid', tracking=tracking)
-            if self.test_dl != None:
-                self._run_epoch(epoch, self.test_dl, mode='test', tracking=tracking)
-                
-            # if self.gpu_id.index == 0 and epoch % self.save_every == 0 and self.model_path:
-                # self._save_checkpoint(epoch)
-                
-    def valid(self, tracking: bool=False):
-        self._run_epoch(0, mode='valid', tracking=tracking)
+        with torch.set_grad_enabled(mode == 'train'):
+            outputs = self.model(inputs)
+            loss = self.loss_func(outputs, labels)
+            batch_metrics = {metric.__name__: metric(outputs, labels) for metric in self.metrics}
+
+            if mode == 'train':
+                loss.backward()
+                self.optimizer.step()
+                if self.scheduler:
+                    self.scheduler.step()
+
+        return loss.item(), batch_metrics
+
+    
+    def run_batch(self, batch, mode):
+        inputs = batch[0].to(self.device).float()
+        labels = batch[1].to(self.device).long()
+
+        if mode == 'train':
+            self.optimizer.zero_grad()
+
+        with torch.set_grad_enabled(mode == 'train'):
+            outputs = self.model(inputs)
+            loss = self.loss_func(outputs, labels)
+            batch_metrics = {metric.__name__: metric(outputs, labels) for metric in self.metrics}
+
+            if mode == 'train':
+                loss.backward()
+                self.optimizer.step()
+                if self.scheduler:
+                    self.scheduler.step()
+
+        return loss.item(), batch_metrics
+
+
+    def save_model(self, epoch):
+        torch.save(self.model.state_dict(), f"{self.model_path}/model_epoch_{epoch}.pth")
+        print(f"Model saved at epoch {epoch}")
+
+    def log_wandb(self, metrics):
+        wandb.log(metrics)
+
+
+def main():
+    # Set device
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # Example dataset and dataloader
+    transform = transforms.Compose([transforms.ToTensor()])
+    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+
+    # Example model, loss function, optimizer, and metrics
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(28 * 28, 10))
+    loss_func = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    metrics = [accuracy]
+
+    # Create and run the trainer
+    trainer = Trainer(
+        model=model,
+        loss_func=loss_func,
+        optimizer=optimizer,
+        metrics=metrics,
+        scheduler=None,
+        device=device,
+        save_every=5,
+        model_path='./'
+    )
+    trainer.train(train_loader, epochs=10)
+
+    # Clean up the downloaded MNIST dataset and saved model
+    shutil.rmtree('./data', ignore_errors=True)
+    for epoch in range(1, 11, 5):  # Assuming epochs=10 and save_every=5
+        model_file = f'./model_epoch_{epoch}.pth'
+        if os.path.exists(model_file):
+            os.remove(model_file)
+    print("Data and saved models are cleaned up.")
+
+if __name__ == "__main__":
+    main()
