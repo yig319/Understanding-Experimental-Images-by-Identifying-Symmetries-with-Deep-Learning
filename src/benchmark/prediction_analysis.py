@@ -13,6 +13,50 @@ from tqdm import tqdm
 from viz import labelfigs
 from style import set_style
 
+import numpy as np
+import glob
+
+
+def show_cm(files, keywords, summary=False, title_head=None, file_path=None, **kwargs):
+    symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
+
+    def sort_key(file, sorting_keys):
+        for index, key in enumerate(sorting_keys):
+            if key in file:
+                return index
+        return len(sorting_keys)
+
+    sorted_files = sorted(files, key=lambda file: sort_key(file, keywords))
+
+    if summary:
+        if len(files) != 4:
+            print('Summary requires 4 files for current layout.')
+            return
+
+        fig, axes = plt.subplots(2, 2, figsize=(6.5, 5))
+        for i, (ax, file) in enumerate(zip(axes.flatten(), sorted_files)):
+            cm = np.load(file)
+            plot_cm(cm, symmetry_classes, title=None, ax=ax, fig_index=i, **kwargs)
+        plt.tight_layout()
+        plt.savefig(f'{file_path}.png')
+        plt.savefig(f'{file_path}.svg')
+        plt.show()
+
+    else:
+        for file, group in zip(sorted_files, keywords):
+            cm = np.load(file)
+            if title_head:
+                title = title_head + group
+            else:
+                title = None
+
+            if file_path:
+                save_file = file_path + title
+            else:   
+                save_file = None
+            plot_cm(cm, symmetry_classes, title=title, file_path=save_file, **kwargs)
+        
+
 # imagenet 
 def confusion_matrix(model, dataloader, classes, device, n_batches=1):
     model.eval()
@@ -94,8 +138,8 @@ def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple',
         
     if show:
         if file_path:
-            if not os.path.isdir(file_path):
-                os.mkdir(file_path)
+            if not os.path.isdir(os.path.dirname(file_path)):
+                os.mkdir(os.path.dirname(file_path))
                 
             plt.savefig(file_path+'.png', dpi=300)
             plt.savefig(file_path+'.svg', dpi=300)
