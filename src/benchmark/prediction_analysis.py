@@ -142,7 +142,7 @@ def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple',
             if not os.path.isdir(os.path.dirname(file_path)):
                 os.mkdir(os.path.dirname(file_path))
                 
-            plt.savefig(file_path+'.png', dpi=300)
+            plt.savefig(file_path+'.png', dpi=600)
             plt.savefig(file_path+'.svg', dpi=300)
 
         plt.show()
