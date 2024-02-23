@@ -58,6 +58,9 @@ def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple',
     plt.rcParams['xtick.bottom'] = False
     plt.rcParams['ytick.left'] = False
     plt.rcParams['ytick.right'] = False
+    plt.rcParams['font.family'] = 'sans-serif'
+    plt.rcParams['font.sans-serif'] = 'Arial'
+
     
     if cm_style == 'simple':
         # print(ax)
