@@ -1,5 +1,6 @@
 # import modules
 import os
+import glob
 import pandas as pd
 import numpy as np
 import torch
@@ -12,9 +13,6 @@ from tqdm import tqdm
 # sys.path.append('../utils/')
 from viz import labelfigs
 from style import set_style
-
-import numpy as np
-import glob
 
 
 def show_cm(files, keywords, summary=False, title_head=None, file_path=None, **kwargs):
@@ -102,8 +100,8 @@ def plot_cm(cm, classes, title=None, file_path=None, ax=None, cm_style='simple',
     plt.rcParams['xtick.bottom'] = False
     plt.rcParams['ytick.left'] = False
     plt.rcParams['ytick.right'] = False
-    plt.rcParams['font.family'] = 'sans-serif'
-    plt.rcParams['font.sans-serif'] = 'Arial'
+    # plt.rcParams['font.family'] = 'sans-serif'
+    # plt.rcParams['font.sans-serif'] = 'Arial'
 
     
     if cm_style == 'simple':

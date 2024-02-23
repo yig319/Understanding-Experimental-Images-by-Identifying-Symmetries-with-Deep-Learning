@@ -67,3 +67,5 @@ def set_style(name="default"):
         plt.rcParams['svg.fonttype'] = 'none'
         plt.rcParams['axes.titlesize'] = 8
         plt.rcParams['figure.dpi'] = 500
+        plt.rcParams['font.family'] = 'sans-serif'
+        plt.rcParams['font.sans-serif'] = 'Arial'
