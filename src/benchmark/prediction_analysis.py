@@ -36,8 +36,8 @@ def show_cm(files, keywords, summary=False, title_head=None, file_path=None, **k
             cm = np.load(file)
             plot_cm(cm, symmetry_classes, title=None, ax=ax, fig_index=i, **kwargs)
         plt.tight_layout()
-        plt.savefig(f'{file_path}.png')
-        plt.savefig(f'{file_path}.svg')
+        plt.savefig(f'{file_path}.png', dpi=600)
+        plt.savefig(f'{file_path}.svg', dpi=300)
         plt.show()
 
     else:
