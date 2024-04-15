@@ -19,7 +19,7 @@ def viz_dataloader(dl, n=8, title=None, hist_bins=None, show_colorbar=False, lab
         raise ValueError("n is smaller than batch size, increase n")
  
     if stacked:
-        for i in range(0, 12, 3):
+        for i in range(0, batch[0][:n].shape[1], 3):
             inputs = batch[0][:n][:, i:i+3]
             labels = list(batch[1][:n].numpy())
             if label_converter:
@@ -108,7 +108,6 @@ def viz_h5_structure(h5_object, indent=''):
             print(f"{indent}'Dataset': {key}; Shape: {item.shape}; dtype: {item.dtype}")
         if isinstance(item, h5py.Group):
             viz_h5_structure(item, indent + '  ')
-
 
 
 
@@ -254,12 +253,56 @@ def copy_h5_group(file, copy_from, copy_to, batch_size):
                 create_data[i_start:i_end] = np.array(h5[copy_from][name][i_start:i_end])
 
 
-def list_to_dict(lst):
-    dictionary = {}
-    for index, item in enumerate(lst):
-        dictionary[index] = item
-    return dictionary
+def copy_h5_data(source_file_path, target_file_path, batch_size=1024):
+    with h5py.File(source_file_path, 'r') as source_file, h5py.File(target_file_path, 'w') as target_file:
+        def copy_item(name, obj):
+            if isinstance(obj, h5py.Dataset):
+                # Handle dataset
+                if obj.dtype.kind == 'U':  # Check if the dataset contains Unicode strings
+                    dtype = h5py.special_dtype(vlen=str)  # Use variable-length string dtype
+                else:
+                    dtype = obj.dtype
 
+                target_dataset = target_file.create_dataset(name, shape=obj.shape, dtype=dtype, chunks=obj.chunks, compression=obj.compression)
+                
+                # Copy data in batches
+                print(f'Copying dataset {name} with shape {obj.shape} and dtype {dtype}')
+                for i in tqdm(range(0, obj.shape[0], batch_size)):
+                    end_index = min(i + batch_size, obj.shape[0])
+                    target_dataset[i:end_index] = obj[i:end_index]
+
+            elif isinstance(obj, h5py.Group):
+                # Handle group
+                target_group = target_file.create_group(name)
+                # Copy attributes
+                for attr_name, attr_value in obj.attrs.items():
+                    target_group.attrs[attr_name] = attr_value
+
+        # Walk through all items in the source file and copy them
+        source_file.visititems(copy_item)
+
+
+def NormalizeData(data):
+    return (data - np.min(data)) / (np.max(data) - np.min(data))
+
+def NormalizeData_torch(data):
+    return (data - torch.min(data)) / (torch.max(data) - torch.min(data))
+
+def NormalizeData_batch(data):
+    min_vals = torch.min(data, dim=(1, 2, 3), keepdim=True).values
+    max_vals = torch.max(data, dim=(1, 2, 3), keepdim=True).values
+    return (data - min_vals) / (max_vals - min_vals)
+
+
+def list_to_dict(lst, inverse=False):
+    dictionary = {}
+    if inverse:
+        for index, item in enumerate(lst):
+            dictionary[item] = index
+    else:
+        for index, item in enumerate(lst):
+            dictionary[index] = item
+    return dictionary
 
 
 def parse_gitignore(gitignore_path):

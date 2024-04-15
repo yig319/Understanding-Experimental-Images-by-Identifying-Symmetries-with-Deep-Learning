@@ -11,12 +11,12 @@ import torch.nn.functional as F
 from torch.nn.modules.utils import _pair, _quadruple
 
 
-class symmetry_filter(nn.Module):
+class SymmetryFilter(nn.Module):
 
     def __init__(self, r_folds=2, n_weight=1, threshold=0, noise_level=0, 
                  kernel_size=4, stride=1, padding=0, same=False, device=torch.device("cpu")):
 
-        super(symmetry_filter, self).__init__()
+        super(SymmetryFilter, self).__init__()
 
 #         self.k = _pair(kernel_size)        # kernel size has to be n*n:
         self.k = kernel_size        # kernel size has to be n*n:
@@ -173,7 +173,6 @@ class symmetry_filter(nn.Module):
                     x_ = self.std_forward(x)
                     self.r_folds = 6
                     x = self.std_forward(x)
-                    print(x.shape)
                     x = torch.std(torch.stack((x, x_), dim=0), dim=0)
                     
                 else:
@@ -193,7 +192,7 @@ def symmetry_preprocess_example(file, setting_dict, show=False):
     
     
     img = plt.imread(file)[:,:,:3]
-    f = symmetry_filter(r_folds=r_folds, n_weight=n_weight, threshold=threshold,
+    f = SymmetryFilter(r_folds=r_folds, n_weight=n_weight, threshold=threshold,
                         noise_level=noise_level, kernel_size=kernel_size, device=device)
     result = f(torch.permute(torch.tensor(img).to(torch.float32), (2,0,1)).unsqueeze(0))
 

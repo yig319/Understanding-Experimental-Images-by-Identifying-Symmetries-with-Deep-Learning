@@ -14,6 +14,11 @@ from tqdm import tqdm
 from viz import labelfigs
 from style import set_style
 
+def freeze_layers(model, layers_to_freeze):
+    for name, param in model.named_parameters():
+        if any(layer in name for layer in layers_to_freeze):
+            param.requires_grad = False
+
 
 def show_cm(files, keywords, summary=False, title_head=None, file_path=None, **kwargs):
     symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']

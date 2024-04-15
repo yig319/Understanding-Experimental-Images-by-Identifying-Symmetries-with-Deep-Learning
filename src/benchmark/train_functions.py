@@ -20,14 +20,18 @@ from torch.utils.data import DataLoader, Dataset
 import torchvision
 
 
-def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, test_dl,
+def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, cv_dl_list, cv_name_list,
                  epochs, start=0, scheduler=None, model_dir=None, tracking=False):
 
     # make directory for the model
     if model_dir and not os.path.isdir(model_dir): 
         os.mkdir(model_dir)
 
-    history = []
+    history = {'epoch':[], 'train_loss':[], 'valid_loss':[], 'train_acc':[], 'valid_acc':[]}
+    if cv_dl_list != []:
+        for cv_name in cv_name_list:
+            history[cv_name+'_loss'] = []
+            history[cv_name+'_acc'] = []
     
     if tracking:   
         wandb.watch(model, log_freq=100)
@@ -38,35 +42,36 @@ def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, test_d
         
         avg_train_loss, avg_train_acc = train(model, loss_func, optimizer, device, train_dl, 
                               scheduler=scheduler, tracking=tracking)
+        print(f"Training: Loss: {avg_train_loss:.4f}, Accuracy: {avg_train_acc*100:.4f}%.")
+        
         
         avg_valid_loss, avg_valid_acc = valid(model, loss_func, device, valid_dl, 
                               tracking=tracking)
+        print(f"Validation: Loss: {avg_valid_loss:.4f}, Accuracy: {avg_valid_acc*100:.4f}%.")
         
-        history.append([avg_train_loss, avg_valid_loss])
+
+        metadata = {'epoch': epoch_idx, 
+                    'train_loss': avg_train_loss, 'valid_loss': avg_valid_loss, 
+                    'train_acc': avg_train_acc, 'valid_acc': avg_valid_acc}
         
-        if test_dl:
-            avg_test_loss, avg_test_acc = valid(model, loss_func, device, test_dl, tracking=tracking)
-            history.append(avg_test_loss)
+        if cv_dl_list != []:
+            for cv_dl, cv_name in zip(cv_dl_list, cv_name_list):
+                avg_cv_loss, avg_cv_acc = valid(model, loss_func, device, cv_dl, task_label='valid', tracking=tracking)
+                metadata[cv_name+'_loss'] = avg_cv_loss
+                metadata[cv_name+'_acc'] = avg_cv_acc
+                print(f"{cv_name}: Loss: {avg_cv_loss:.4f}, Accuracy: {avg_cv_acc*100:.4f}%.")
+
             
         if tracking:   
             # record the epoch loss and accuracy:            
-            if test_dl:
-                wandb.log({'epoch':epoch_idx, 
-                           "train_loss": avg_train_loss, 
-                           "valid_loss": avg_valid_loss,
-                           "train_acc": avg_train_acc, 
-                           "valid_acc": avg_valid_acc,
-                           "test_loss": avg_test_loss,
-                           "test_acc": avg_test_acc})
-            else:
-                wandb.log({"epoch": epoch_idx,
-                           "train_loss": avg_train_loss, 
-                           "valid_loss": avg_valid_loss,
-                           "train_acc": avg_train_acc, 
-                           "valid_acc": avg_valid_acc}) 
+            wandb.log(metadata)
                 
         if model_dir != None:
             torch.save(model.cpu(), os.path.join(model_dir, 'epoch-{}.pt'.format(epoch_idx+1)))
+
+        # record the epoch loss and accuracy:
+        for key, value in metadata.items():
+            history[key].append(value)
                 
     return history
 
@@ -125,7 +130,6 @@ def train(model, loss_func, optimizer, device, train_dl, scheduler=None, trackin
     # Find average training loss and training accuracy
     avg_train_loss = train_loss/train_data_size 
     avg_train_acc = train_acc/float(train_data_size)
-    print("Training: Loss: {:.4f}, Accuracy: {:.4f}%, Time: {:.4f}mins".format(avg_train_loss, avg_train_acc*100, (time.time()-start_time)/60))
 
     return avg_train_loss, avg_train_acc
 
@@ -184,6 +188,5 @@ def valid(model, loss_func, device, valid_dl, task_label='valid', tracking=False
     # Find average training loss and training accuracy
     avg_valid_loss = valid_loss/valid_data_size 
     avg_valid_acc = valid_acc/float(valid_data_size)
-    print("Validation : Loss : {:.4f}, Accuracy: {:.4f}%, Time: {:.2f}mins".format(avg_valid_loss, avg_valid_acc*100, (time.time()-start_time)/60))
 
     return avg_valid_loss, avg_valid_acc

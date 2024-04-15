@@ -31,17 +31,21 @@ def create_axes_grid(n_plots, n_per_row, plot_height, n_rows=None, figsize='auto
 
 
 def trim_axes(axs, N):
+
     """
     Reduce *axs* to *N* Axes. All further Axes are removed from the figure.
     """
-    axs = axs.flat
-    for ax in axs[N:]:
-        ax.remove()
-    return axs[:N]
+    # axs = axs.flatten()
+    # for ax in axs[N:]:
+    #     ax.remove()
+    # return axs[:N]
+    for i in range(N, len(axs.flatten())):
+        axs.flatten()[i].remove()
+    return axs.flatten()[:N]
 
 
 def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12, title=None, show_colorbar=False, 
-                clim=3, cmap='viridis', scale_range=False, hist_bins=None, show_axis=False, axes=None, save_path=None):
+                clim=3, cmap='viridis', scale_range=False, hist_bins=None, hist_range=None, show_axis=False, axes=None, save_path=None):
     
     '''
     Plots multiple images in grid.
@@ -73,33 +77,24 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
             fig, axes = create_axes_grid(len(images), img_per_row, img_height, n_rows=None, figsize='auto')
         
     axes = axes.flatten()
-    if hist_bins:
-        trim_axes(axes, len(images)*2)
-    else:
-        trim_axes(axes, len(images))
 
-    for index, img in enumerate(images):
-        
-#         if torch.is_tensor(x_tensor):
-#             if img.requires_grad: img = img.detach()
-#             img = img.numpy()
+    for i, img in enumerate(images):
+
+        if hist_bins:
+            index = i + (i//img_per_row)*img_per_row
+        else:
+            index = i
             
         if isinstance(scale_range, bool): 
             if scale_range: img = NormalizeData(img)
                     
-        # if len(images) <= img_per_row and not hist_bins:
-        #     index = i%img_per_row
-        # else:
-        #     index = (i//img_per_row)*n, i%img_per_row
-        # print(i, index)
-
-        axes[index].set_title (labels[index], fontsize=label_size)
+        axes[index].set_title(labels[i], fontsize=label_size)
         im = axes[index].imshow(img, cmap=cmap)
 
         if show_colorbar:
             m, s = np.mean(img), np.std(img) 
             if type(clim) == list:
-                im.set_clim(m-clim[index]*s, m+clim[i]*s) 
+                im.set_clim(m-clim[i]*s, m+clim[i]*s) 
             else:
                 im.set_clim(m-clim*s, m+clim*s) 
 
@@ -113,20 +108,20 @@ def show_images(images, labels=None, img_per_row=8, img_height=1, label_size=12,
 
         if hist_bins:
             index_hist = index+img_per_row
-            h = axes[index_hist].hist(img.flatten(), bins=hist_bins)
+            # index_hist = index*2+1
+            if not isinstance(hist_range, type(None)):
+                if not isinstance(hist_range[0], type(None)):
+                    img_hist = img[img>hist_range[0]].flatten()
+                if not isinstance(hist_range[1], type(None)):
+                    img_hist = img[img<hist_range[1]].flatten()
+            else:
+                img_hist = img.flatten()
+            h = axes[index_hist].hist(img_hist, bins=hist_bins)
 
         if title:
             fig.suptitle(title, fontsize=12)
     plt.tight_layout()
 
-    # if save_path and isinstance(axes, type(None)): # this is not effective because axes are defined after the function is called
-    #     plt.savefig(save_path+'.svg', dpi=300)
-    #     plt.savefig(save_path+'.png', dpi=300)
-    
-    # print(axes)
-    # if isinstance(axes, type(None)): # this is not effective because axes are defined after the function is called
-    #     plt.show()
-    
     
 def labelfigs(ax, number=None, style="wb",
               loc="tl", string_add="", size=8,

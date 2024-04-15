@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision import models
 import timm
+from rotation_filter import RotateConv2d
 
 def xcit_small(in_channels, n_classes, pretrained=False):
     model = timm.create_model('xcit_small_12_p8_224', pretrained=pretrained)
@@ -35,21 +36,37 @@ def densenet161_(in_channels, n_classes, pretrained=False):
                             )
     return model
 
-def resnet50_(in_channels, n_classes, weights=None):
-    model = models.resnet50(weights=None)
+def resnet34_(in_channels, n_classes, dropout=0.5, weights=None):
+    model = models.resnet34(weights=weights)
     model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-    model.fc = nn.Sequential(nn.BatchNorm1d(2048),
-                            nn.Dropout(p=0.5, inplace=False),
-                            nn.Linear(in_features = 2048, out_features=512, bias=False),
-                            nn.ReLU(inplace=True),
-
+    model.fc = nn.Sequential(
                             nn.BatchNorm1d(512),
-                            nn.Dropout(p=0.5, inplace=False),
+                            nn.Dropout(p=dropout, inplace=False),
                             nn.Linear(in_features = 512, out_features=64, bias=False),
                             nn.ReLU(inplace=True),
                             
                             nn.BatchNorm1d(64),
-                            nn.Dropout(p=0.5, inplace=False),
+                            nn.Dropout(p=dropout, inplace=False),
+                            nn.Linear(in_features=64, out_features=n_classes, bias=True)
+                            )
+    return model
+
+
+def resnet50_(in_channels, n_classes, dropout=0.5, weights=None):
+    model = models.resnet50(weights=weights)
+    model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    model.fc = nn.Sequential(nn.BatchNorm1d(2048),
+                            nn.Dropout(p=dropout, inplace=False),
+                            nn.Linear(in_features = 2048, out_features=512, bias=False),
+                            nn.ReLU(inplace=True),
+
+                            nn.BatchNorm1d(512),
+                            nn.Dropout(p=dropout, inplace=False),
+                            nn.Linear(in_features = 512, out_features=64, bias=False),
+                            nn.ReLU(inplace=True),
+                            
+                            nn.BatchNorm1d(64),
+                            nn.Dropout(p=dropout, inplace=False),
                             nn.Linear(in_features=64, out_features=n_classes, bias=True)
                             )
     return model
