@@ -11,7 +11,7 @@ from sklearn.metrics import ConfusionMatrixDisplay
 from tqdm import tqdm
 # import sys
 # sys.path.append('../utils/')
-from viz import labelfigs
+from viz import labelfigs, create_axes_grid
 from style import set_style
 
 def freeze_layers(model, layers_to_freeze):
@@ -32,11 +32,13 @@ def show_cm(files, keywords, summary=False, title_head=None, file_path=None, **k
     sorted_files = sorted(files, key=lambda file: sort_key(file, keywords))
 
     if summary:
-        if len(files) != 4:
-            print('Summary requires 4 files for current layout.')
-            return
+        # if len(files) != 4:
+        #     print('Summary requires 4 files for current layout.')
+        #     return
 
-        fig, axes = plt.subplots(2, 2, figsize=(6.5, 5))
+        fig, axes = create_axes_grid(n_plots=len(files), n_per_row=2, plot_height=4, n_rows=None, figsize='auto')
+
+        # fig, axes = plt.subplots(2, 2, figsize=(6.5, 5))
         for i, (ax, file) in enumerate(zip(axes.flatten(), sorted_files)):
             cm = np.load(file)
             plot_cm(cm, symmetry_classes, title=None, ax=ax, fig_index=i, **kwargs)
