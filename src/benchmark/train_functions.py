@@ -21,7 +21,17 @@ import torchvision
 
 
 def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, cv_dl_list, cv_name_list,
-                 epochs, start=0, scheduler=None, model_dir=None, tracking=False):
+                 epochs, start=0, scheduler=None, valid_every_epochs=1, model_dir=None, tracking=False):
+    
+    if isinstance(valid_every_epochs, int) and cv_dl_list != []:
+        if not isinstance(valid_dl, type(None)):
+            valid_every_epochs = [valid_every_epochs]*len(cv_dl_list+1)
+        else:
+            valid_every_epochs = [valid_every_epochs]*len(cv_dl_list)
+        
+    elif isinstance(valid_every_epochs, list) and cv_dl_list == []:
+        if len(valid_every_epochs) != len(cv_dl_list):
+            raise ValueError("The length of valid_every_epochs should match the number of cross-validation datasets.")
 
     # make directory for the model
     if model_dir and not os.path.isdir(model_dir): 
@@ -44,24 +54,23 @@ def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, cv_dl_
                               scheduler=scheduler, tracking=tracking)
         print(f"Training: Loss: {avg_train_loss:.4f}, Accuracy: {avg_train_acc*100:.4f}%.")
         
+        metadata = {'epoch': epoch_idx, 'train_loss': avg_train_loss, 'train_acc': avg_train_acc}
         
-        avg_valid_loss, avg_valid_acc = valid(model, loss_func, device, valid_dl, 
-                              tracking=tracking)
-        print(f"Validation: Loss: {avg_valid_loss:.4f}, Accuracy: {avg_valid_acc*100:.4f}%.")
-        
+        if not isinstance(valid_dl, type(None)):
+            if (epoch_idx+1) % valid_every_epochs == 0:
+                avg_valid_loss, avg_valid_acc = valid(model, loss_func, device, valid_dl, tracking=tracking)
+                metadata['valid_loss'] = avg_valid_loss
+                metadata['valid_acc'] = avg_valid_acc
+                print(f"Validation: Loss: {avg_valid_loss:.4f}, Accuracy: {avg_valid_acc*100:.4f}%.")
 
-        metadata = {'epoch': epoch_idx, 
-                    'train_loss': avg_train_loss, 'valid_loss': avg_valid_loss, 
-                    'train_acc': avg_train_acc, 'valid_acc': avg_valid_acc}
-        
         if cv_dl_list != []:
-            for cv_dl, cv_name in zip(cv_dl_list, cv_name_list):
-                avg_cv_loss, avg_cv_acc = valid(model, loss_func, device, cv_dl, task_label='valid', tracking=tracking)
-                metadata[cv_name+'_loss'] = avg_cv_loss
-                metadata[cv_name+'_acc'] = avg_cv_acc
-                print(f"{cv_name}: Loss: {avg_cv_loss:.4f}, Accuracy: {avg_cv_acc*100:.4f}%.")
+            for i, (cv_dl, cv_name) in enumerate(zip(cv_dl_list, cv_name_list)):
+                if (epoch_idx+1) % valid_every_epochs[i+1] == 0: # the first element is for the validation set
+                    avg_cv_loss, avg_cv_acc = valid(model, loss_func, device, cv_dl, task_label=cv_name, tracking=tracking)
+                    metadata[cv_name+'_loss'] = avg_cv_loss
+                    metadata[cv_name+'_acc'] = avg_cv_acc
+                    print(f"{cv_name}: Loss: {avg_cv_loss:.4f}, Accuracy: {avg_cv_acc*100:.4f}%.")
 
-            
         if tracking:   
             # record the epoch loss and accuracy:            
             wandb.log(metadata)
@@ -178,12 +187,8 @@ def valid(model, loss_func, device, valid_dl, task_label='valid', tracking=False
             valid_acc += acc.item() * inputs.size(0)  
             
             if tracking: 
-                if task_label == 'valid':
-                    wandb.log({ "valid_loss": loss.item(), 
-                                "valid_acc": acc.item()})
-                elif task_label == 'test':
-                    wandb.log({ "test_loss": loss.item(), 
-                                "test_acc": acc.item()})  
+                wandb.log({ task_label+"_loss": loss.item(), 
+                            task_label+"_acc": acc.item()})
                     
     # Find average training loss and training accuracy
     avg_valid_loss = valid_loss/valid_data_size 
