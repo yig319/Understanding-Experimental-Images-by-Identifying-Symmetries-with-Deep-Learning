@@ -1,8 +1,46 @@
 import torch
 import torch.nn as nn
 from torchvision import models
+import torch.nn.functional as F
 import timm
 import sys
+
+class STN(nn.Module):
+    def __init__(self):
+        super(STN, self).__init__()
+        # Initialize the scaling factors
+        self.scale_factors = nn.Parameter(torch.tensor([1.0, 1.0], dtype=torch.float))
+
+    def forward(self, x):
+        theta = torch.diag(self.scale_factors).view(1, 2, 2)
+        theta = theta.repeat(x.size(0), 1, 1)  # Repeat for each image in the batch
+
+        # Extend theta for affine_grid
+        affine_mat = torch.zeros(theta.size(0), 2, 3).to(theta.device)
+        affine_mat[:, :, :2] = theta
+        affine_mat[:, :, 2] = 0  # No translation
+
+        grid = F.affine_grid(affine_mat, x.size(), align_corners=False)
+        x = F.grid_sample(x, grid, align_corners=False)
+        return x
+    
+class ScaleAdaptiveModel(nn.Module):
+    def __init__(self, pretrained_model):
+        super(ScaleAdaptiveModel, self).__init__()
+        self.backbone = pretrained_model
+        self.fc_classifier = self.backbone.fc
+        self.backbone.fc = nn.Identity()  # Use backbone for feature extraction only
+        
+        # STN Module
+        self.stn = STN()
+
+    def forward(self, x):
+        # Apply scaling transformation
+        x = self.stn(x)
+        # Pass the transformed input through the backbone
+        x = self.backbone(x)
+        x = self.fc_classifier(x)
+        return x
 
 def xcit_small(in_channels, n_classes, pretrained=False):
     model = timm.create_model('xcit_small_12_p8_224', pretrained=pretrained)
