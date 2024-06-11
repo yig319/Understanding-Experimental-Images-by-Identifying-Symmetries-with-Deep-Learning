@@ -20,26 +20,23 @@ from torch.utils.data import DataLoader, Dataset
 import torchvision
 
 
-def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, cv_dl_list, cv_name_list,
+def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl_list, valid_name_list,
                  epochs, start=0, scheduler=None, valid_every_epochs=1, model_dir=None, tracking=False):
     
-    if isinstance(valid_every_epochs, int) and cv_dl_list != []:
-        if not isinstance(valid_dl, type(None)):
-            valid_every_epochs = [valid_every_epochs]*len(cv_dl_list+1)
-        else:
-            valid_every_epochs = [valid_every_epochs]*len(cv_dl_list)
+    if isinstance(valid_every_epochs, int) and valid_dl_list != []:
+        valid_every_epochs = [valid_every_epochs]*len(valid_dl_list)
         
-    elif isinstance(valid_every_epochs, list) and cv_dl_list == []:
-        if len(valid_every_epochs) != len(cv_dl_list):
+    elif isinstance(valid_every_epochs, list) and valid_dl_list == []:
+        if len(valid_every_epochs) != len(valid_dl_list):
             raise ValueError("The length of valid_every_epochs should match the number of cross-validation datasets.")
-
+    
     # make directory for the model
     if model_dir and not os.path.isdir(model_dir): 
         os.mkdir(model_dir)
 
     history = {'epoch':[], 'train_loss':[], 'valid_loss':[], 'train_acc':[], 'valid_acc':[]}
-    if cv_dl_list != []:
-        for cv_name in cv_name_list:
+    if valid_dl_list != []:
+        for cv_name in valid_name_list:
             history[cv_name+'_loss'] = []
             history[cv_name+'_acc'] = []
     
@@ -55,17 +52,10 @@ def train_epochs(model, loss_func, optimizer, device, train_dl, valid_dl, cv_dl_
         print(f"Training: Loss: {avg_train_loss:.4f}, Accuracy: {avg_train_acc*100:.4f}%.")
         
         metadata = {'epoch': epoch_idx, 'train_loss': avg_train_loss, 'train_acc': avg_train_acc}
-        
-        if not isinstance(valid_dl, type(None)):
-            if (epoch_idx+1) % valid_every_epochs == 0:
-                avg_valid_loss, avg_valid_acc = valid(model, loss_func, device, valid_dl, tracking=tracking)
-                metadata['valid_loss'] = avg_valid_loss
-                metadata['valid_acc'] = avg_valid_acc
-                print(f"Validation: Loss: {avg_valid_loss:.4f}, Accuracy: {avg_valid_acc*100:.4f}%.")
 
-        if cv_dl_list != []:
-            for i, (cv_dl, cv_name) in enumerate(zip(cv_dl_list, cv_name_list)):
-                if (epoch_idx+1) % valid_every_epochs[i+1] == 0: # the first element is for the validation set
+        if valid_dl_list != []:
+            for i, (cv_dl, cv_name) in enumerate(zip(valid_dl_list, valid_name_list)):
+                if (epoch_idx+1) % valid_every_epochs[i] == 0: # the first element is for the validation set
                     avg_cv_loss, avg_cv_acc = valid(model, loss_func, device, cv_dl, task_label=cv_name, tracking=tracking)
                     metadata[cv_name+'_loss'] = avg_cv_loss
                     metadata[cv_name+'_acc'] = avg_cv_acc
