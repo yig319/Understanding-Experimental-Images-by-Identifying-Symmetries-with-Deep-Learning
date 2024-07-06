@@ -41,13 +41,63 @@ class ScaleAdaptiveModel(nn.Module):
         x = self.backbone(x)
         x = self.fc_classifier(x)
         return x
+    
+
+def crossvit(in_channels, n_classes, pretrained=False):
+    model = timm.create_model('crossvit_15_240', pretrained=pretrained)
+    if in_channels != 3:
+        model.patch_embed[0].proj = nn.Conv2d(in_channels, 192, kernel_size=(12, 12), stride=(12, 12))
+        model.patch_embed[1].proj = nn.Conv2d(in_channels, 384, kernel_size=(16, 16), stride=(16, 16))
+    model.head[0] = nn.Linear(in_features=192, out_features=n_classes, bias=True)
+    model.head[1] = nn.Linear(in_features=384, out_features=n_classes, bias=True)
+    return model
+
+# def crossvit(in_channels, n_classes, pretrained=False, img_size=256):
+#     # Create the base model
+#     model = timm.create_model('crossvit_15_240', pretrained=pretrained, img_size=img_size)
+    
+#     # Modify the input layers (patch embeddings) for both branches
+#     model.patch_embed[0].proj = nn.Conv2d(in_channels, 192, kernel_size=(12, 12), stride=(12, 12))
+#     model.patch_embed[1].proj = nn.Conv2d(in_channels, 384, kernel_size=(16, 16), stride=(16, 16))
+    
+#     # Modify the output layers (heads) for both branches
+#     model.head[0] = nn.Linear(in_features=192, out_features=n_classes, bias=True)
+#     model.head[1] = nn.Linear(in_features=384, out_features=n_classes, bias=True)
+    
+#     # Adjust positional embeddings for new image size
+#     for i in range(2):
+#         pos_embed = model.pos_embed_0 if i == 0 else model.pos_embed_1
+#         num_patches = (img_size // model.patch_embed[i].patch_size[0]) ** 2
+#         num_extra_tokens = 1  # cls token
+#         new_size = num_patches + num_extra_tokens
+#         if pos_embed.shape[1] != new_size:
+#             # Resize pos embedding
+#             pos_embed_resized = torch.nn.functional.interpolate(
+#                 pos_embed.permute(0, 2, 1).unsqueeze(0), 
+#                 size=new_size, 
+#                 mode='linear'
+#             )
+#             pos_embed_resized = pos_embed_resized.squeeze(0).permute(0, 2, 1)
+#             if i == 0:
+#                 model.pos_embed_0 = nn.Parameter(pos_embed_resized)
+#             else:
+#                 model.pos_embed_1 = nn.Parameter(pos_embed_resized)
+    
+#     return model
+
+
+def vit_base(in_channels, n_classes, pretrained=False):
+    model = timm.create_model('vit_base_patch16_224', pretrained=pretrained, img_size=256)
+    model.patch_embed.proj = nn.Conv2d(in_channels, 768, kernel_size=(16, 16), stride=(16, 16))
+    model.head = nn.Linear(in_features=768, out_features=n_classes, bias=True)
+    return model
+
 
 def xcit_small(in_channels, n_classes, pretrained=False):
     model = timm.create_model('xcit_small_12_p8_224', pretrained=pretrained)
     model.patch_embed.proj[0][0] = nn.Conv2d(in_channels, 96, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
     model.head = nn.Linear(in_features=384, out_features=n_classes, bias=True)
     return model
-
 
 def xcit_medium(in_channels, n_classes, pretrained=False):
     model = timm.create_model('xcit_medium_24_p8_224', pretrained=pretrained)

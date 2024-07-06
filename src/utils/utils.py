@@ -2,6 +2,7 @@ import glob
 import random
 import os
 import numpy as np
+from PIL import Image
 import torch
 from torch.utils.data import Dataset
 import h5py
@@ -149,10 +150,69 @@ def viz_h5_structure(h5_object, indent=''):
 
 
 
-### h5py datasets for training
+def numpy_to_tensor(image):
+    # Ensure the image is in the correct format (H, W, C) and type
+    if image.dtype != np.uint8:
+        image = (image * 255).astype(np.uint8)
+    if image.ndim == 2:  # If it's a grayscale image
+        image = np.expand_dims(image, axis=-1)
+    # Convert to (C, H, W) format
+    image = np.transpose(image, (2, 0, 1))
+    return torch.from_numpy(image).float() / 255.0
+
+
+# ### h5py datasets for training
+# class hdf5_dataset(Dataset):
+    
+#     def __init__(self, file_path, folder='train', transform=None, data_key='data', label_key='labels'):
+#         self.file_path = file_path
+#         self.folder = folder
+#         self.transform = transform
+#         self.hf = None
+#         self.data_key = data_key
+#         self.label_key = label_key
+
+#     def __len__(self):
+#         with h5py.File(self.file_path, 'r') as f:
+#             self.len = len(f[self.folder]['labels'])
+#         return self.len
+    
+#     # def __getitem__(self, idx):
+#     #     if self.hf is None:
+#     #         self.hf = h5py.File(self.file_path, 'r')
+            
+#     #     image = np.array(self.hf[self.folder][self.data_key][idx])
+#     #     label = np.array(self.hf[self.folder][self.label_key][idx])
+        
+#     #     if self.transform:
+#     #         image = self.transform(image)
+#         # return image, label
+    
+
+#     def __getitem__(self, idx):
+#         if self.hf is None:
+#             self.hf = h5py.File(self.file_path, 'r')
+            
+#         image = np.array(self.hf[self.folder][self.data_key][idx])
+#         label = np.array(self.hf[self.folder][self.label_key][idx])
+        
+#         # Convert numpy array to PIL Image
+#         if image.dtype != np.uint8:
+#             image = (image * 255).astype(np.uint8)
+#         if image.ndim == 2:  # If it's a grayscale image
+#             image = Image.fromarray(image, mode='L')
+#         else:
+#             image = Image.fromarray(image)
+        
+#         if self.transform:
+#             image = self.transform(image)
+        
+#         return image, torch.tensor(label)
+
+
 class hdf5_dataset(Dataset):
     
-    def __init__(self, file_path, folder='train', transform=None, data_key='data', label_key='labels'):
+    def __init__(self, file_path, folder=None, transform=None, data_key='data', label_key='labels'):
         self.file_path = file_path
         self.folder = folder
         self.transform = transform
@@ -162,20 +222,36 @@ class hdf5_dataset(Dataset):
 
     def __len__(self):
         with h5py.File(self.file_path, 'r') as f:
-            self.len = len(f[self.folder]['labels'])
+            if self.folder:
+                self.len = len(f[self.folder][self.label_key])
+            else:
+                self.len = len(f[self.label_key])
         return self.len
     
     def __getitem__(self, idx):
         if self.hf is None:
             self.hf = h5py.File(self.file_path, 'r')
-            
-        image = np.array(self.hf[self.folder][self.data_key][idx])
-        label = np.array(self.hf[self.folder][self.label_key][idx])
+        
+        if self.folder:
+            image = np.array(self.hf[self.folder][self.data_key][idx])
+            label = np.array(self.hf[self.folder][self.label_key][idx])
+        else:
+            image = np.array(self.hf[self.data_key][idx])
+            label = np.array(self.hf[self.label_key][idx])
+        
+        # Convert numpy array to PIL Image
+        if image.dtype != np.uint8:
+            image = (image * 255).astype(np.uint8)
+        if image.ndim == 2:  # If it's a grayscale image
+            image = Image.fromarray(image, mode='L')
+        else:
+            image = Image.fromarray(image)
         
         if self.transform:
             image = self.transform(image)
-        return image, label
-
+        
+        return image, torch.tensor(label)
+    
 class hdf5_dataset_stack(Dataset):
     
     def __init__(self, file_path, folder='train', transform=None, data_keys=['data'], label_key='labels'):
