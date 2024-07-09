@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 from torchvision import models
 import timm
-from rotation_filter import RotateConv2d
+# import sys
+# sys.path.append('../preprocessing/')
+# from rotation_filter import RotateConv2d
 
 def xcit_small(in_channels, n_classes, pretrained=False):
     model = timm.create_model('xcit_small_12_p8_224', pretrained=pretrained)
