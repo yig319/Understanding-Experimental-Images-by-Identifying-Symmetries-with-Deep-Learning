@@ -1,4 +1,5 @@
 import os
+import wandb
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -13,7 +14,7 @@ import sys
 sys.path.append('../../src/benchmark/')
 sys.path.append('../../src/utils/')
 from build_model import xcit_small
-from trainer_ddp_07302024 import DDPTrainer
+from trainer_ddp import DDPTrainer
 from utils import split_train_valid, list_to_dict, viz_dataloader, hdf5_dataset
 
 def accuracy(outputs, labels):
@@ -69,6 +70,17 @@ def train_model(rank, world_size, gpu_ids, num_workers, batch_size, learning_rat
     save_every = 1
     model_path = f'../../saved_models/{NAME}/'
     
+    if rank == 0:
+        config = {
+            'dataset': '10 million datasets',
+            'loss_func': 'CrossEntropyLoss', # nn.MSELoss()
+            'optimizer': 'Adam',
+            'scheduler': 'OneCycleLR',
+        }
+        wandb.login()
+        proj_name = 'Understanding-Experimental-Images-by-Identifying-Symmetries-with-Deep-Learning'
+        wandb.init(project=proj_name, entity='yig319', name=NAME, id=NAME, save_code=True, config=config)
+        config = wandb.config
 
     # training scripts
     trainer = DDPTrainer(
@@ -100,9 +112,9 @@ def main():
     )
 
 # Global variables
-GPU_IDS = [2, 3, 6, 7, 8]
+GPU_IDS = [2, 3, 4, 5, 6, 7, 8]
 WORLD_SIZE = len(GPU_IDS)
-NUM_WORKERS = 4 # Adjust as needed
+NUM_WORKERS = 7 # Adjust as needed
 BATCH_SIZE = 180
 LEARNING_RATE = 1e-3
 NUM_EPOCHS = 50
