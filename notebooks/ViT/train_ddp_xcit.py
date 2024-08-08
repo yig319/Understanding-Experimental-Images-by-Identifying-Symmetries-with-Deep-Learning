@@ -114,7 +114,7 @@ def main():
 # Global variables
 GPU_IDS = [2, 3, 4, 5, 6, 7, 8]
 WORLD_SIZE = len(GPU_IDS)
-NUM_WORKERS = 7 # Adjust as needed
+NUM_WORKERS = 4 # Adjust as needed
 BATCH_SIZE = 180
 LEARNING_RATE = 1e-3
 NUM_EPOCHS = 50
