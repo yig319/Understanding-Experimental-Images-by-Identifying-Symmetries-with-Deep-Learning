@@ -37,8 +37,8 @@ class Trainer:
         self.best_metric = None
         self.epochs_without_improvement = 0
 
-    def train(self, train_dl, epochs, valid_dl=None, cv_dl=None, tracking=False):
-        for epoch in range(epochs):
+    def train(self, train_dl, epochs, epoch_start, valid_dl=None, cv_dl=None, tracking=False):
+        for epoch in range(epoch_start, epochs+epoch_start):
             print(f"Epoch {epoch+1}/{epochs}")
             self.run_epoch(train_dl, mode='train', tracking=tracking)
             if valid_dl:

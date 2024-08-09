@@ -23,7 +23,7 @@ def accuracy(outputs, labels):
 
 def setup(rank, world_size, gpu_ids):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
+    os.environ['MASTER_PORT'] = '0'  # This will use a random free port
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, gpu_ids))
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
@@ -63,6 +63,7 @@ def train_model(rank, world_size, gpu_ids, num_workers, batch_size, learning_rat
     # define model and metrics
     NAME = '07302024-benchmark-XCiT-v4_10m-DDP'
     model = xcit_small(3, 17).to(device)
+    model.load_state_dict(torch.load('../../saved_models/07302024-benchmark-XCiT-v4_10m-DDP/epoch_29.pth')).to(device)
     loss_func = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, epochs=num_epochs, max_lr=learning_rate, steps_per_epoch=len(train_dl))
@@ -98,7 +99,7 @@ def train_model(rank, world_size, gpu_ids, num_workers, batch_size, learning_rat
     )
     
     valid_dl_dict = {'valid': valid_dl, 'atom': atom_dl, 'noise': noise_dl}
-    trainer.train(train_dl, num_epochs, valid_dl_dict=valid_dl_dict, tracking=tracking)
+    trainer.train(train_dl, num_epochs, epoch_start=29, valid_dl_dict=valid_dl_dict, tracking=tracking)
     trainer.cleanup()
     
     cleanup()
@@ -112,7 +113,7 @@ def main():
     )
 
 # Global variables
-GPU_IDS = [2, 3, 4, 5, 6, 7, 8]
+GPU_IDS = [3, 4, 5, 6, 7, 8]
 WORLD_SIZE = len(GPU_IDS)
 NUM_WORKERS = 4 # Adjust as needed
 BATCH_SIZE = 180
