@@ -64,7 +64,7 @@ class DDPTrainer:
         if 'valid' not in valid_dl_dict:
             raise ValueError("valid_dl_dict must contain a 'valid' key for early stopping")
         
-        for epoch in range(epoch_start, epochs):
+        for epoch in range(epoch_start, epochs+epoch_start):
             if self.rank == 0 or self.use_data_parallel:
                 print(f"Epoch {epoch+1}/{epochs}")
             self.run_epoch(train_dl, dl_name='train', mode='train', tracking=tracking)
