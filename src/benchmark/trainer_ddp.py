@@ -66,7 +66,7 @@ class DDPTrainer:
         
         for epoch in range(epoch_start, epochs+epoch_start):
             if self.rank == 0 or self.use_data_parallel:
-                print(f"Epoch {epoch+1}/{epochs}")
+                print(f"Epoch {epoch+1}/{epochs+epoch_start}")
             self.run_epoch(train_dl, dl_name='train', mode='train', tracking=tracking)
 
             early_stop = False

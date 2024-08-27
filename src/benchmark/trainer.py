@@ -37,14 +37,18 @@ class Trainer:
         self.best_metric = None
         self.epochs_without_improvement = 0
 
-    def train(self, train_dl, epochs, epoch_start, valid_dl=None, cv_dl=None, tracking=False):
+    def train(self, train_dl, epochs, epoch_start, valid_dl_list=None, valid_dl_names=None, tracking=False):
+        if valid_dl_list and valid_dl_names:
+            assert len(valid_dl_list) == len(valid_dl_names), "Number of validation dataloaders must match number of names"
+        
         for epoch in range(epoch_start, epochs+epoch_start):
             print(f"Epoch {epoch+1}/{epochs}")
             self.run_epoch(train_dl, mode='train', tracking=tracking)
-            if valid_dl:
-                early_stop = self.run_epoch(valid_dl, mode='valid', tracking=tracking)
-                if cv_dl:
-                    _ = self.run_epoch(cv_dl, mode='valid', tracking=tracking)
+            if valid_dl_list:
+                early_stop = False
+                for idx, valid_dl in enumerate(valid_dl_list):
+                    name = valid_dl_names[idx] if valid_dl_names else f"valid_{idx}"
+                    early_stop = self.run_epoch(valid_dl, name=name, mode='valid', tracking=tracking) or early_stop
                 if early_stop:
                     print("Early stopping triggered.")
                     break 
@@ -52,11 +56,12 @@ class Trainer:
             if self.save_every and (epoch + 1) % self.save_every == 0:
                 self.save_model(epoch + 1)
 
-                
-    def validate(self, valid_dl, tracking=False):
-        self.run_epoch(valid_dl, mode='valid', tracking=tracking)
+    def validate(self, valid_dl_list, valid_dl_names=None, tracking=False):
+        for idx, valid_dl in enumerate(valid_dl_list):
+            name = valid_dl_names[idx] if valid_dl_names else f"valid_{idx}"
+            self.run_epoch(valid_dl, mode='valid', tracking=tracking, name=name)
 
-    def run_epoch(self, data_loader, mode='train', tracking=False):
+    def run_epoch(self, data_loader, name=None, mode='train', tracking=False):
         if mode == 'train':
             self.model.train()
         else:
@@ -73,11 +78,11 @@ class Trainer:
                 metric_values[metric_name] += metric_value * batch[0].size(0)
 
             if tracking:
-                self.log_wandb({f"{mode}_loss": loss, **batch_metrics})
+                self.log_wandb({f"{mode}_{name}_loss" if name else f"{mode}_loss": loss, **{f"{name}_{k}" if name else k: v for k, v in batch_metrics.items()}})
 
         avg_loss = total_loss / data_size
         avg_metrics = {metric: value / data_size for metric, value in metric_values.items()}
-        print(f"{mode.capitalize()}: Loss: {avg_loss:.4f}, " + ", ".join([f"{metric}: {value * 100:.4f}%" for metric, value in avg_metrics.items()]))
+        print(f"{mode.capitalize()} {f'({name})' if name else ''}: Loss: {avg_loss:.4f}, " + ", ".join([f"{metric}: {value * 100:.4f}%" for metric, value in avg_metrics.items()]))
 
         if mode == 'valid' and self.early_stopping_patience is not None:
             primary_metric = list(self.metrics)[0].__name__  # Assuming the first metric is the primary one for early stopping
@@ -88,6 +93,7 @@ class Trainer:
                 self.epochs_without_improvement += 1
                 if self.epochs_without_improvement >= self.early_stopping_patience:
                     return True  # Indicate early stopping
+        return False
 
     def run_batch(self, batch, mode):
         inputs = batch[0].to(self.device).float()
@@ -108,28 +114,6 @@ class Trainer:
                     self.scheduler.step()
 
         return loss.item(), batch_metrics
-
-    
-    def run_batch(self, batch, mode):
-        inputs = batch[0].to(self.device).float()
-        labels = batch[1].to(self.device).long()
-
-        if mode == 'train':
-            self.optimizer.zero_grad()
-
-        with torch.set_grad_enabled(mode == 'train'):
-            outputs = self.model(inputs)
-            loss = self.loss_func(outputs, labels)
-            batch_metrics = {metric.__name__: metric(outputs, labels) for metric in self.metrics}
-
-            if mode == 'train':
-                loss.backward()
-                self.optimizer.step()
-                if self.scheduler:
-                    self.scheduler.step()
-
-        return loss.item(), batch_metrics
-
 
     def save_model(self, epoch):
         torch.save(self.model.state_dict(), f"{self.model_path}/model_epoch_{epoch}.pth")
@@ -148,6 +132,12 @@ def main():
     train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
+    # Example validation datasets
+    val_dataset1 = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+    val_dataset2 = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+    val_loader1 = DataLoader(val_dataset1, batch_size=64, shuffle=False)
+    val_loader2 = DataLoader(val_dataset2, batch_size=64, shuffle=False)
+
     # Example model, loss function, optimizer, and metrics
     model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(28 * 28, 10))
     loss_func = torch.nn.CrossEntropyLoss()
@@ -165,7 +155,7 @@ def main():
         save_every=5,
         model_path='./'
     )
-    trainer.train(train_loader, epochs=10)
+    trainer.train(train_loader, epochs=10, epoch_start=0, valid_dl_list=[val_loader1, val_loader2], valid_dl_names=['val1', 'val2'])
 
     # Clean up the downloaded MNIST dataset and saved model
     shutil.rmtree('./data', ignore_errors=True)
