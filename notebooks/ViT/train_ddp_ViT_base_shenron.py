@@ -58,9 +58,12 @@ def train_model(rank, world_size, gpu_ids, num_workers, batch_size, learning_rat
     atom_dl = DataLoader(atom_ds, batch_size=batch_size, sampler=atom_sampler, num_workers=num_workers)
 
     # define model and metrics
+    
+    epoch_start = 23
     NAME = '08022024-benchmark-vit_base-v4_10m-DDP-shenron'
     model = vit_base(in_channels=3, n_classes=17).to(device)
-    model.load_state_dict(torch.load('../../saved_models/08022024-benchmark-vit_base-v4_10m-DDP-shenron/epoch_12.pth'))
+    
+    model.load_state_dict(torch.load(f'../../saved_models/08022024-benchmark-vit_base-v4_10m-DDP-shenron/epoch_{epoch_start-1}.pth'))
     # model = torch.load('../../saved_models/08022024-benchmark-vit_base-v4_10m-DDP-shenron/epoch_12.pth').to(device)
     loss_func = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -97,7 +100,7 @@ def train_model(rank, world_size, gpu_ids, num_workers, batch_size, learning_rat
     )
     
     valid_dl_dict = {'valid': valid_dl, 'atom': atom_dl, 'noise': noise_dl}
-    trainer.train(train_dl, num_epochs, epoch_start=12, valid_dl_dict=valid_dl_dict, tracking=tracking)
+    trainer.train(train_dl, num_epochs, epoch_start=epoch_start, valid_dl_dict=valid_dl_dict, tracking=tracking)
     trainer.cleanup()
     cleanup()
 
@@ -110,12 +113,12 @@ def main():
     )
 
 # Global variables
-GPU_IDS = [5, 6]
+GPU_IDS = [2, 3]
 WORLD_SIZE = len(GPU_IDS)
 NUM_WORKERS = 4 # Adjust as needed
 BATCH_SIZE = 256
 LEARNING_RATE = 1e-3
-NUM_EPOCHS = 20
+NUM_EPOCHS = 10
 TRACKING = False
 
 if __name__ == "__main__":
