@@ -3,6 +3,7 @@ import random
 import os
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset
 import h5py
@@ -319,6 +320,27 @@ def split_train_valid(dataset, train_ratio, seed=42):
     train_ds, valid_ds = torch.utils.data.random_split(dataset, [train_size, valid_size], 
                                                        generator=torch.Generator().manual_seed(seed))
     return train_ds, valid_ds
+
+
+
+def detect_blank_images(h5_file, dataset_name, group_name=None):
+    with h5py.File(h5_file, 'r') as f:
+        if group_name:
+            dataset = f[group_name][dataset_name]
+        else:
+            dataset = f[dataset_name]
+        total_images = dataset.shape[0]
+        blank_image_index = []
+
+        for i in tqdm(range(total_images)):
+            image = dataset[i]
+            if np.min(image) == np.max(image):
+                blank_image_index.append(i)
+                
+    print(f"Blank images are: {blank_image_index}")
+    return blank_image_index
+        
+
 
 def copy_directory_structure(src, dest, gitignore_path=None):
     """
