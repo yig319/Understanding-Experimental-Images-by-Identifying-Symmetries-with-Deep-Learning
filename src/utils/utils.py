@@ -336,9 +336,9 @@ def detect_blank_images(h5_file, dataset_name, group_name=None):
             image = dataset[i]
             if np.min(image) == np.max(image):
                 blank_image_index.append(i)
-                print(i)
-                plt.imshow(image)
-                plt.show()
+                # print(i)
+                # plt.imshow(image)
+                # plt.show()
                 
     print(f"Blank images are: {blank_image_index}")
     return blank_image_index
