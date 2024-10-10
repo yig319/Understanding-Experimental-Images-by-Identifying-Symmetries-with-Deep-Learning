@@ -352,8 +352,6 @@ class fpn_resnet50_classification(nn.Module):
                 nn.Dropout(p=0.5, inplace=False),
                 nn.Linear(in_features=64, out_features=n_classes, bias=True)
                 )
-        
-        
 
     def forward(self, x):
         feature_maps = self.fpn(x)
