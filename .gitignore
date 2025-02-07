@@ -1,5 +1,7 @@
 # saved results and models
-data/
+figures/
+models/
+results/
 datasets/
 saved_models/
 src/m3learning-util/
