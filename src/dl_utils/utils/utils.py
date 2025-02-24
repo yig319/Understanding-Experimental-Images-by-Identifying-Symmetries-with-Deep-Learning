@@ -7,6 +7,36 @@ import h5py
 import fnmatch
 import random
 
+def find_symm_index_in_hdf5(h5, symm_str, group, index_start=0, index_end=None):
+    symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
+    symm_dict = {i:symmetry_classes[i] for i in range(len(symmetry_classes))}
+
+    if index_end is None:
+        index_end = len(h5[group]['labels'])
+    for i in range(index_start, index_end):
+        if symm_str == symm_dict[h5[group]['labels'][i]]:
+            return i
+    return None
+
+
+def viz_h5_structure(h5_object, indent=''):
+    """
+    Print the structure of an HDF5 file.
+
+    Parameters:
+    - h5file: HDF5 file object or HDF5 group object.
+    - indent: String used for indentation to represent the hierarchy level.
+    """
+    for key in h5_object.keys():
+        item = h5_object[key]
+        if isinstance(item, h5py.Group):
+            print(f"{indent}'Group': {key}")
+        elif isinstance(item, h5py.Dataset):
+            print(f"{indent}'Dataset': {key}; Shape: {item.shape}; dtype: {item.dtype}")
+        if isinstance(item, h5py.Group):
+            viz_h5_structure(item, indent + '  ')
+
+
 def get_random_batch_indices(dataset, batch_size):
     """
     Generates a random batch of indices from an HDF5 dataset.
@@ -41,7 +71,6 @@ def sort_tasks_by_size(file_paths, size_order):
     
     
 def find_last_epoch_file(files):
-        
     # Function to extract the epoch number from a file path
     def extract_epoch_number(file_path):
         match = re.search(r'model_epoch_(\d+)\.pth', file_path)

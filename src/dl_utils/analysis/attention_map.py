@@ -197,3 +197,5 @@ class AttentionMapVisualizer:
             if title:
                 plt.suptitle(title)
             plt.show()
+            
+        return overlay
