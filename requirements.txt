@@ -20,3 +20,6 @@ tqdm>=4.67.1,<5.0
 wandb>=0.19.3,<0.20
 wget>=3.2,<4.0
 torchcam
+torch
+torchvision
+M3Learning-Util

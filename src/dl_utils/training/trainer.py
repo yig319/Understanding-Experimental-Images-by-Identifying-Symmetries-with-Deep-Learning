@@ -225,6 +225,8 @@ class Trainer:
         self.valid_per_epochs = valid_per_epochs
         validation_epoch_list = self.get_validation_epochs(epochs, epoch_start, valid_per_epochs)
         
+        print(validation_epoch_list)
+        
         # Initialize best validation metrics
         self.best_valid_acc = -float('inf')  # Higher is better
         self.best_valid_loss = float('inf')  # Lower is better

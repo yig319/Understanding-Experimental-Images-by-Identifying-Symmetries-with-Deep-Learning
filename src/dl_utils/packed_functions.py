@@ -141,7 +141,7 @@ def benchmark_task(task_name, model, training_specs, ds_path_info, wandb_specs={
     lr = training_specs['learning_rate']
     epoch_start = 0
     epochs = training_specs['training_image_count'] // len(train_ds) # training epochs based on the number of images in the dataset 
-    valid_per_epochs = epochs / training_specs['validation_times'] # validation times based on the number of epochs
+    valid_per_epochs = np.max((1, epochs / training_specs['validation_times'])) # validation times based on the number of epochs, and at least 1
     efficient_print = training_specs['efficient_print']
     loss_func = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
