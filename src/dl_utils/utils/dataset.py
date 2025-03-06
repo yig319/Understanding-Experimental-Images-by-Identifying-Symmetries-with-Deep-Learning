@@ -80,21 +80,21 @@ def split_train_valid(dataset, train_ratio=0.8, seed=42):
         seed (int): Random seed for reproducibility.
 
     Returns:
-        train_ds, valid_ds (SubsetWithAttributes): Subsets with inherited attributes.
+        train_ds, valid_ds: Subsets of the original dataset.
     """
     all_size = len(dataset)
     train_size = int(train_ratio * all_size)
     valid_size = all_size - train_size
 
-    train_indices, valid_indices = random_split(
-        range(all_size), [train_size, valid_size], generator=torch.Generator().manual_seed(seed)
-    )
+    # print(f"Dataset split: Train = {train_size}, Valid = {valid_size}")
 
-    # Use the custom Subset class to retain all dataset attributes and methods
-    train_ds = SubsetWithAttributes(dataset, train_indices)
-    valid_ds = SubsetWithAttributes(dataset, valid_indices)
+    train_ds, valid_ds = random_split(
+        dataset, [train_size, valid_size], generator=torch.Generator().manual_seed(seed)
+    )
+    # print(f"Subset sizes: Train = {len(train_ds)}, Valid = {len(valid_ds)}")
 
     return train_ds, valid_ds
+
 
 
 class hdf5_dataset(Dataset):

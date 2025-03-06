@@ -1,9 +1,12 @@
 import numpy as np
 import cv2
+from matplotlib import pyplot as plt
 from skimage.metrics import structural_similarity as ssim
+from m3util.viz.layout import layout_fig
+from dl_utils.utils.viz import verify_image_vector
 
 
-def find_all_regions(img, ts, VA, VB):
+def find_all_regions(img, ts, VA, VB, viz=False):
     """
     Finds all parallelogram-shaped regions in the image defined by the starting point `ts` and vectors `VA` and `VB`.
 
@@ -12,6 +15,7 @@ def find_all_regions(img, ts, VA, VB):
         ts (tuple): Starting point (y, x).
         VA (tuple): First translation vector (dy1, dx1).
         VB (tuple): Second translation vector (dy2, dx2).
+        viz (bool): Visualize the cropped regions.
 
     Returns:
         regions (list): List of cropped image patches.
@@ -28,6 +32,18 @@ def find_all_regions(img, ts, VA, VB):
         region, mask = crop_image_with_mask(img, valid_ts, VA, VB)
         regions.append(region)
         masks.append(mask)
+        
+    if viz:
+        fig, axes = layout_fig(len(valid_ts_list), 4, figsize=(8, 2*(len(valid_ts_list)//5+1)))
+        for ax, ts in zip(axes, valid_ts_list):
+            verify_image_vector(ax=ax, image=img, ts=ts, va=VA, vb=VB, shade_alpha=0.3, shade_color='white')
+        plt.show()
+        
+        fig, axes = layout_fig(len(valid_ts_list), 4, figsize=(8, 2*(len(valid_ts_list)//5+1)))
+        for ax, ts, cropped_img in zip(axes, valid_ts_list, regions):
+            ax.imshow(cropped_img)
+        plt.suptitle('All regions')
+        plt.show()
 
     return regions, masks, valid_ts_list
 
@@ -264,3 +280,58 @@ def calculate_shift_tolerant_ssim(patches, max_shift=2, highpass_filter=False, e
                 similarity_matrix[j, i] = best_ssim
 
     return similarity_matrix
+
+
+def rot_4f_eval(regions, viz=False):
+    similarity_matrix_list = []
+    for region in regions:
+        patterns = [region, np.rot90(region, 1), np.rot90(region, 2), np.rot90(region, 3)]
+        
+        similarity_matrix = calculate_shift_tolerant_ssim(patterns, max_shift=2, highpass_filter=True)
+        similarity_matrix_list.append(np.mean(similarity_matrix))
+        
+        if viz:
+            fig, axes = layout_fig(4, 4, figsize=(8, 2))
+            for i, ax in enumerate(axes):
+                ax.imshow(patterns[i])
+            plt.suptitle('Rotated 4-fold symmetry, SSIM: {:.2f}'.format(np.mean(similarity_matrix)))
+            plt.show()
+        
+    return similarity_matrix_list
+
+def rot_2f_eval(regions, viz=False):
+    similarity_matrix_list = []
+    for region in regions:
+        patterns = [region, np.rot90(region, 2)]
+                
+        similarity_matrix = calculate_shift_tolerant_ssim(patterns, max_shift=2, highpass_filter=True)
+        similarity_matrix_list.append(np.mean(similarity_matrix))
+        
+        if viz:
+            fig, axes = layout_fig(2, 2, figsize=(8, 2))
+            for i, ax in enumerate(axes):
+                ax.imshow(patterns[i])
+            plt.suptitle('Rotated 2-fold symmetry, SSIM: {:.2f}'.format(np.mean(similarity_matrix)))
+            plt.show()
+
+    return similarity_matrix_list
+
+
+def mirror_eval(regions, viz=False):
+    similarity_matrix_list = []
+    for region in regions:
+        patterns = [region, np.flip(region, axis=0)]
+        
+        similarity_matrix = calculate_shift_tolerant_ssim(patterns, max_shift=2, highpass_filter=True)
+        similarity_matrix_list.append(np.mean(similarity_matrix))
+        
+        if viz:
+            fig, axes = layout_fig(2, 2, figsize=(8, 2))
+            for i, ax in enumerate(axes):
+                ax.imshow(patterns[i])
+            plt.suptitle('Mirror symmetry, SSIM: {:.2f}'.format(np.mean(similarity_matrix)))
+            plt.show()
+        
+    return similarity_matrix_list
+
+

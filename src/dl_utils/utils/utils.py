@@ -18,7 +18,18 @@ def find_symm_index_in_hdf5(h5, symm_str, group, index_start=0, index_end=None):
             return i
     return None
 
+def fetch_img_metadata(h5, group, index, data_str='data', label_str='labels', ts_str='translation_start_point', va_str='primitive_uc_vector_a', vb_str='primitive_uc_vector_b', VA_str='translation_uc_vector_a', VB_str='translation_uc_vector_b'):
+    
+    symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
+    label_converter = list_to_dict(symmetry_classes)
 
+    img, label, ts = h5[group][data_str][index], h5[group][label_str][index], h5[group][ts_str][index]
+    va, vb = h5[group][va_str][index], h5[group][vb_str][index]
+    VA, VB = h5[group][VA_str][index], h5[group][VB_str][index]
+    label_str = label_converter[label]
+    return img, label, label_str, ts, va, vb, VA, VB
+    
+    
 def viz_h5_structure(h5_object, indent=''):
     """
     Print the structure of an HDF5 file.
@@ -68,7 +79,6 @@ def sort_tasks_by_size(file_paths, size_order):
     )
     
     return sorted_file_paths
-    
     
 def find_last_epoch_file(files):
     # Function to extract the epoch number from a file path
