@@ -1,4 +1,6 @@
 # saved results and models
+*.tif
+*.tiff
 # figures/
 models/
 datasets/
