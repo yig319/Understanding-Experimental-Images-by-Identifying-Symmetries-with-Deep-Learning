@@ -245,11 +245,10 @@ class Trainer:
             
             if not skip_validation_print:
                 if valid_dl_list:
-                    early_stop = False
                     for idx, valid_dl in enumerate(valid_dl_list):
                         
                         name = valid_dl_names[idx] if valid_dl_names else f"valid_{idx}"
-                        early_stop = self.run_epoch(epoch, valid_dl, skip_validation_print=skip_validation_print, name=name, mode='valid', wandb_record=wandb_record) or early_stop
+                        early_stop = self.run_epoch(epoch, valid_dl, skip_validation_print=skip_validation_print, name=name, mode='valid', wandb_record=wandb_record) 
                     
                     if early_stop:
                         print("Early stopping triggered.")

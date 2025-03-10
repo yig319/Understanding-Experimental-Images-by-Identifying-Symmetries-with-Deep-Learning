@@ -247,7 +247,6 @@ def generate_prediction_example(model, data_source, t, p, classes, device, k=5, 
             metadata = { 'ts': ts, 'va': va, 'vb': vb, 'VA': VA, 'VB': VB }
 
 
-
     else:  # PyTorch DataLoader
         dataloader = data_source
         
@@ -287,6 +286,8 @@ def generate_prediction_example(model, data_source, t, p, classes, device, k=5, 
         else:
             raise ValueError(f"No misclassified samples found after {batch_limit} batches.")
         metadata = {}
+        label_str = label
+        
         
     # Visualization
     if viz:
@@ -298,5 +299,5 @@ def generate_prediction_example(model, data_source, t, p, classes, device, k=5, 
         plt.axis("off")
         plt.show()
     
-    return image, label, top_predictions, probs, metadata
+    return image, label_str, top_predictions, probs, metadata
 

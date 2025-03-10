@@ -9,17 +9,13 @@ from dl_utils.utils.utils import NormalizeData
 from m3util.viz.layout import layout_fig
 
 class AttentionMapVisualizer:
-    def __init__(self, colormap="viridis", alpha=0.5, device=torch.device("cpu")):
+    def __init__(self, device=torch.device("cpu")):
         """
         Initializes the AttentionMapVisualizer.
 
         Args:
-            model (torch.nn.Module): The model for which attention maps will be generated.
-            colormap (str): Colormap to use for the attention map (default: "viridis").
-            alpha (float): Transparency for the overlay (default: 0.5).
-        """
-        self.colormap = plt.get_cmap(colormap)
-        self.alpha = alpha
+            device (torch.device): The device to use for processing.
+            """
         self.device = device
             
     def generate_cnn_attention_map(self, model, input_tensor, layer_name="layer4"):
@@ -158,6 +154,26 @@ class AttentionMapVisualizer:
         return input_image_np, attention_map_resized
     
     
+    def generate_overlay_attention_map(self, input_image_np, attention_map_resized, colormap="viridis", alpha=0.5):
+        """
+        Generates an overlay attention map for visualization.
+
+        Args:
+            input_image_np (np.ndarray): The input image as a NumPy array.
+            attention_map_resized (np.ndarray): The resized attention map.
+
+        Returns:
+            np.ndarray: The overlayed attention map.
+        """
+       # Apply the colormap
+        cmap = plt.get_cmap(colormap)
+        colored_attention_map = cmap(attention_map_resized)[:, :, :3] # Keep RGB only
+
+        # Create overlay manually
+        overlay = (alpha * input_image_np + (1 - alpha) * (colored_attention_map * 255)).astype("uint8")
+        return overlay
+    
+    
     def visualize_attention_map(self, input_image_np, attention_map_resized, keyword, fig=None, axes=None, title=None):
         """
         Visualizes the attention map overlaid on the input image.
@@ -165,17 +181,17 @@ class AttentionMapVisualizer:
         Args:
             input_image_np (np.ndarray): The input image as a NumPy array.
             attention_map_resized (np.ndarray): The resized attention map.
+            keyword (str): The keyword to display in the title.
+            fig (plt.Figure): The figure to use for plotting.
+            axes (list): List of axes to use for plotting.
+            title (str): The title for the plot.
+            
 
         Returns:
             None: Displays the attention map.
         """
-
-        # Apply the colormap
-        cmap = plt.get_cmap(self.colormap)
-        colored_attention_map = cmap(attention_map_resized)[:, :, :3] # Keep RGB only
-
         # Create overlay manually
-        overlay = (self.alpha * input_image_np + (1 - self.alpha) * (colored_attention_map * 255)).astype("uint8")
+        overlay = self.generate_overlay_attention_map(input_image_np, attention_map_resized)
 
         if axes is None:
             fig, axes = layout_fig(3, 3, figsize=(8, 2.5), layout='tight')

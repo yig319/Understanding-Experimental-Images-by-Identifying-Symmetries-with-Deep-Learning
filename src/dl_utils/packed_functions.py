@@ -14,41 +14,50 @@ from dl_utils.analysis.confusion_matrix import show_multiple_cm
 from dl_utils.analysis.attention_map import AttentionMapVisualizer
 from dl_utils.utils.utils import list_to_dict, sort_tasks_by_size, viz_h5_structure, find_symm_index_in_hdf5, fetch_img_metadata
 from dl_utils.utils.dataset import viz_dataloader, split_train_valid, hdf5_dataset
+from dl_utils.training.build_model import resnet50_, xcit_small, fpn_resnet50_classification, densenet161_
 from dl_utils.training.trainer import Trainer, accuracy
 
 
+def generate_attention_maps(ds_path, group, confusion_pair, layers, task_name, model_type, model_path, device, filename=None, viz=True):
+        
+    if model_type == 'ResNet50':
+        model = resnet50_(in_channels=3, n_classes=17)
+        
+    elif model_type == 'XCiT':
+        model = xcit_small(in_channels=3, n_classes=17)
+        
+    model.load_state_dict(torch.load(model_path, weights_only=True, map_location=device))
+    model.eval()
+        
+    symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
+    img, label, top_predictions, probs, metadata = generate_prediction_example(model, ds_path, t=confusion_pair[0], p=confusion_pair[1], classes=symmetry_classes, device=device, batch_limit=10000, group=group, viz=False)
+    ts, va, vb, VA, VB = metadata['ts'], metadata['va'], metadata['vb'], metadata['VA'], metadata['VB']
 
-def generate_attention_maps(model, ds_path, confusion_pair, layers, task_name, model_type, device, filename=None, viz=True):
-    
-    ds_path = f'../../../Wallpaper_Group_Symmetry_Dataset/datasets/imagenet_v5/imagenet_v5_rot_10k_fix_vector_a100_0.h5'
-    group = 'imagenet'
-    with h5py.File(ds_path) as h5:
-        index = find_symm_index_in_hdf5(h5, symm_str='p4', group=group, index_start=1000, index_end=None)
-        input_tensor, label, label_str, ts, va, vb, VA, VB = fetch_img_metadata(h5, group=group, index=index)
-        input_tensor = torch.tensor(input_tensor).unsqueeze(0).to(device)
-        label_pred = model(input_tensor).argmax().item()
-        label_pred_str = symmetry_classes[label_pred]
-        if label_pred_str != 'p4':
-            raise ValueError(f'Invalid prediction: {label_pred_str}')
-    
-    attention_map_resized_list, overlay_attention_map_list = [], []
+    ## generate attention maps
     visualizer = AttentionMapVisualizer(device=device)
-
-    layers = ['layer4', 'layer3', 'layer2', 'layer1']
+    input_tensor = transforms.ToTensor()(img).unsqueeze(0)  # Example input tensor (N, C, H, W)
+    attention_map_resized_list, overlay_attention_map_list = [], []
     for i, layer in enumerate(layers):
         if model_type == 'ResNet50':
             input_image_np, attention_map_resized = visualizer.generate_cnn_attention_map(model, input_tensor, layer_name=layer)
         elif model_type == 'XCiT':
             input_image_np, attention_map_resized = visualizer.generate_transformer_attention_map(model, input_tensor, attention_layer_idx=layer)
+        overlay_attention_map = visualizer.generate_overlay_attention_map(input_image_np, attention_map_resized, alpha=0.4)
         attention_map_resized_list.append(attention_map_resized)
         overlay_attention_map_list.append(overlay_attention_map)
+
             
     if viz:
-        fig, axes = layout_fig(len(layers)*3, 3, figsize=(8, len(layers)*2.8), subplot_style='subplots', layout='tight')
-
-        for i, layer in enumerate(layers):
-            overlay_attention_map = visualizer.visualize_attention_map(input_image_np, attention_map_resized, keyword=layer, fig=fig, axes=axes[i*3:i*3+3])
-            
+        num_figs = len(layers)+1
+        fig, axes = layout_fig(num_figs, num_figs, figsize=(2*num_figs, num_figs*2.8), subplot_style='subplots', layout='tight')
+        axes[0].imshow(input_image_np)
+        axes[0].axis('off')
+        axes[0].set_title(f'Input Image - True: {label}, Pred: {top_predictions[0]}')
+        for i, ax in enumerate(axes[1:]):
+            ax.imshow(overlay_attention_map_list[i])
+            ax.axis('off')
+            ax.set_title(f'{layers[i]}')
+                    
         plt.suptitle(f"{task_name}", fontsize=10)
         if filename:
             plt.savefig(f'{filename}.png', dpi=600)
@@ -139,15 +148,20 @@ def benchmark_task(task_name, model, training_specs, ds_path_info, wandb_specs={
         
     # training
     lr = training_specs['learning_rate']
-    epoch_start = 0
-    epochs = training_specs['training_image_count'] // len(train_ds) # training epochs based on the number of images in the dataset 
+    if 'epoch_start' in training_specs:
+        epoch_start = training_specs['epoch_start']
+    else:
+        epoch_start = 0
+    epochs = training_specs['training_image_count'] // len(train_ds) - epoch_start # training epochs based on the number of images in the dataset 
     valid_per_epochs = np.max((1, epochs / training_specs['validation_times'])) # validation times based on the number of epochs, and at least 1
+    early_stopping_patience = np.max((3, valid_per_epochs+2)) # early stopping patience based on the number of validation times, and at least 2
     efficient_print = training_specs['efficient_print']
     loss_func = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, epochs=epochs, max_lr=lr, steps_per_epoch=len(train_dl))
     metrics = [accuracy]  # You can add more metrics if needed
-    trainer = Trainer(model=model, loss_func=loss_func, optimizer=optimizer, metrics=metrics, scheduler=scheduler, device=device, save_per_epochs=valid_per_epochs, model_path=training_specs['model_path']+NAME+'/', early_stopping_patience=valid_per_epochs, efficient_print=efficient_print)
+    
+    trainer = Trainer(model=model, loss_func=loss_func, optimizer=optimizer, metrics=metrics, scheduler=scheduler, device=device, save_per_epochs=valid_per_epochs, model_path=training_specs['model_path']+NAME+'/', early_stopping_patience=early_stopping_patience, efficient_print=efficient_print) # 
 
     history = trainer.train(train_dl=train_dl, epochs=epochs, epoch_start=epoch_start, valid_per_epochs=valid_per_epochs, valid_dl_list=[valid_dl, noise_dl, atom_dl], valid_dl_names=['', 'noise', 'atom'], wandb_record=training_specs['wandb_record'])
     wandb.finish()

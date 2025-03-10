@@ -34,10 +34,10 @@ def find_all_regions(img, ts, VA, VB, viz=False):
         masks.append(mask)
         
     if viz:
-        fig, axes = layout_fig(len(valid_ts_list), 4, figsize=(8, 2*(len(valid_ts_list)//5+1)))
-        for ax, ts in zip(axes, valid_ts_list):
-            verify_image_vector(ax=ax, image=img, ts=ts, va=VA, vb=VB, shade_alpha=0.3, shade_color='white')
-        plt.show()
+        # fig, axes = layout_fig(len(valid_ts_list), 4, figsize=(8, 2*(len(valid_ts_list)//5+1)))
+        # for ax, ts in zip(axes, valid_ts_list):
+        #     verify_image_vector(ax=ax, image=img, ts=ts, va=VA, vb=VB, shade_alpha=0.3, shade_color='white')
+        # plt.show()
         
         fig, axes = layout_fig(len(valid_ts_list), 4, figsize=(8, 2*(len(valid_ts_list)//5+1)))
         for ax, ts, cropped_img in zip(axes, valid_ts_list, regions):
@@ -257,12 +257,29 @@ def calculate_shift_tolerant_ssim(patches, max_shift=2, highpass_filter=False, e
                     for dx in range(-max_shift, max_shift + 1):
                         # Shift patch j by (dx, dy) and compute SSIM
                         shifted_patch = np.roll(patches[j], shift=(dy, dx), axis=(0, 1))
+                        
+                        # Determine the smallest dimension of the patch
+                        min_dim = min(patches[i].shape[:2])
+
+                        # Ensure win_size is valid: it must be odd and <= min_dim
+                        win_size = min(7, min_dim) if min_dim < 7 else (min_dim if min_dim % 2 == 1 else min_dim - 1)
+
+                        # Compute SSIM with the corrected window size
                         ssim_score = ssim(
                             patches[i], shifted_patch, 
                             data_range=255, 
-                            win_size=min(patches[i].shape[:2]),  # Ensure win_size is valid
+                            win_size=win_size, 
                             channel_axis=-1 if patches[i].ndim == 3 else None  # Handle RGB properly
                         )
+
+
+                        # ssim_score = ssim(
+                        #     patches[i], shifted_patch, 
+                        #     data_range=255, 
+                        #     win_size=min(patches[i].shape[:2]),  # Ensure win_size is valid
+                        #     channel_axis=-1 if patches[i].ndim == 3 else None  # Handle RGB properly
+                        # )
+                        
                         # Keep the maximum SSIM found
                         best_ssim = max(best_ssim, ssim_score)
 
@@ -333,5 +350,3 @@ def mirror_eval(regions, viz=False):
             plt.show()
         
     return similarity_matrix_list
-
-
