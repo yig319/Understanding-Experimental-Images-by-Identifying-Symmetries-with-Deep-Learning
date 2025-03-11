@@ -462,6 +462,8 @@ class Trainer:
     def plot_training_metrics(self):
         plot_info = self.history
         plot_info.pop('epoch')
+        print(plot_info)
+        print(len(plot_info.keys()))
         
         epochs = range(1, len(plot_info['train_loss']) + 1)
         epochs_short = range(1, len(plot_info['train_loss']) + 1, self.valid_per_epochs)
