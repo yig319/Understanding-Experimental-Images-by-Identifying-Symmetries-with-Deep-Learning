@@ -40,9 +40,10 @@ def confusion_matrix(model, dataloader, classes, device, n_batches=1):
                 right += cm[i, j]
             else:
                 wrong += cm[i, j]
-                
-    print(f'Accuracy for these batches: {right / (right + wrong) * 100:.2f}%')
-    return cm.astype(np.int32)
+    
+    accuracy = right / (right + wrong)
+    print(f'Accuracy for these batches: {accuracy * 100:.2f}%')
+    return cm.astype(np.int32), accuracy
 
 
 def show_multiple_cm(cm_list, subtitles, fig=None, axes=None, classes=None, suptitle=None, file_path=None, **kwargs):

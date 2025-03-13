@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import wandb
+from m3util.viz.layout import layout_fig
 
 def freeze_layers(model, layers_to_freeze):
     for name, param in model.named_parameters():
@@ -462,19 +463,21 @@ class Trainer:
     def plot_training_metrics(self):
         plot_info = self.history
         plot_info.pop('epoch')
-        print(plot_info)
-        print(len(plot_info.keys()))
+        # print(plot_info)
+        # print(len(plot_info.keys()))
+        self.valid_per_epochs = int(self.valid_per_epochs)
+        # print(self.valid_per_epochs)
         
         epochs = range(1, len(plot_info['train_loss']) + 1)
         epochs_short = range(1, len(plot_info['train_loss']) + 1, self.valid_per_epochs)
-        fig, axes = plt.subplots(len(plot_info.keys()), 1, figsize=(6, 4*len(plot_info.keys())))
+        col, row = 2, len(plot_info.keys())//2+1*bool(len(plot_info.keys())%2)
+        fig, axes = layout_fig(len(plot_info.keys()), col, figsize=(8, row*2), layout='tight')
+        
         for i, (metric_name, metric_values) in enumerate(plot_info.items()):
             if 'train' in metric_name:
                 axes[i].plot(epochs, metric_values, 'k-')
-            elif 'valid' in metric_name:
+            else:
                 axes[i].plot(epochs_short, metric_values, 'k-')
-            axes[i].set_title(metric_name)
             axes[i].set_xlabel('Epochs')
             axes[i].set_ylabel(metric_name)
-        plt.tight_layout()
         plt.show()

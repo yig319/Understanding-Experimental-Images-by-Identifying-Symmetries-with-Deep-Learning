@@ -231,7 +231,7 @@ def generate_prediction_example(model, data_source, t, p, classes, device, k=5, 
 
         with h5py.File(data_source, 'r') as h5:
             for _ in range(batch_limit):
-                start_index = np.random.randint(0, len(h5[group]['labels']))
+                start_index = np.random.randint(0, len(h5[group]['labels'])-batch_limit)
                 index = find_symm_index_in_hdf5(h5, symm_str=t, group=group, index_start=start_index, index_end=None)
                 img, label, label_str, ts, va, vb, VA, VB  = fetch_img_metadata(h5, group=group, index=index)
 
