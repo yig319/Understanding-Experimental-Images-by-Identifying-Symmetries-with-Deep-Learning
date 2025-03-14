@@ -11,9 +11,9 @@ from dl_utils.utils.utils import NormalizeData
 from dl_utils.training.build_model import resnet50_, xcit_small, fpn_resnet50_classification, densenet161_
 
 
-def generate_attention_maps(img, metadata, layers, task_name, model, model_type, device, filename=None, viz=True):
+def generate_attention_maps(img, layers, task_name, model, model_type, device, filename=None, viz=True):
 
-    ts, va, vb, VA, VB = metadata['ts'], metadata['va'], metadata['vb'], metadata['VA'], metadata['VB']
+    # ts, va, vb, VA, VB = metadata['ts'], metadata['va'], metadata['vb'], metadata['VA'], metadata['VB']
 
     ## generate attention maps
     visualizer = AttentionMapVisualizer(device=device)
