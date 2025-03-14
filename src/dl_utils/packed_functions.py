@@ -32,6 +32,10 @@ def generate_attention_maps(ds_path, group, confusion_pair, layers, task_name, m
         
     symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
     img, label, top_predictions, probs, metadata = generate_prediction_example(model, ds_path, t=confusion_pair[0], p=confusion_pair[1], classes=symmetry_classes, device=device, batch_limit=1000000, group=group, viz=False)
+    into = f"True: {confusion_pair[0]} | Predicted: {confusion_pair[1]}\n"
+    into += ", ".join(f"{cls}: {prob.item() * 100:.2f}%" for cls, prob in zip(top_predictions, probs))
+    print(into)
+        
     ts, va, vb, VA, VB = metadata['ts'], metadata['va'], metadata['vb'], metadata['VA'], metadata['VB']
 
     ## generate attention maps
@@ -53,7 +57,7 @@ def generate_attention_maps(ds_path, group, confusion_pair, layers, task_name, m
         fig, axes = layout_fig(num_figs, num_figs, figsize=(2*num_figs, num_figs*2.8), subplot_style='subplots', layout='tight')
         axes[0].imshow(input_image_np)
         axes[0].axis('off')
-        axes[0].set_title(f'Input Image - True: {label}, Pred: {top_predictions[0]}')
+        axes[0].set_title(f'Input Image')
         for i, ax in enumerate(axes[1:]):
             ax.imshow(overlay_attention_map_list[i])
             ax.axis('off')

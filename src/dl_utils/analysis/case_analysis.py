@@ -181,7 +181,7 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 
-def generate_prediction_example(model, data_source, t, p, classes, device, k=5, batch_limit=100, group=None, viz=True):
+def generate_prediction_example(model, data_source, confusion_pair, classes, device, k=5, batch_limit=100, group=None, viz=True):
     """
     Finds and visualizes the most confused cases between two classes efficiently.
     Supports both PyTorch dataloader and HDF5 dataset as input.
@@ -204,6 +204,7 @@ def generate_prediction_example(model, data_source, t, p, classes, device, k=5, 
     model.eval()
     model = model.to(device)
     
+    t, p = confusion_pair
     t_n, p_n = classes.index(t), classes.index(p)
     
     def process_sample(data, label):
@@ -288,16 +289,15 @@ def generate_prediction_example(model, data_source, t, p, classes, device, k=5, 
         metadata = {}
         label_str = label
         
-        
     # Visualization
+    info = f"True: {t} | Predicted: {p}\n"
+    info += ", ".join(f"{cls}: {prob.item() * 100:.2f}%" for cls, prob in zip(top_predictions, probs))
     if viz:
-        title = f"True: {t} | Predicted: {p}\n"
-        title += ", ".join(f"{cls}: {prob.item() * 100:.2f}%" for cls, prob in zip(top_predictions, probs))
         plt.figure(figsize=(5, 4))
         plt.imshow(image)  # Convert (C, H, W) to (H, W, C)
-        plt.title(title)
+        plt.title(info)
         plt.axis("off")
         plt.show()
     
-    return image, label_str, top_predictions, probs, metadata
+    return image, label_str, top_predictions, probs, metadata, info
 

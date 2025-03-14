@@ -4,9 +4,52 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 from PIL import Image
 import torch
+from torchvision import transforms
 from torchcam.methods import GradCAM
-from dl_utils.utils.utils import NormalizeData
 from m3util.viz.layout import layout_fig
+from dl_utils.utils.utils import NormalizeData
+from dl_utils.training.build_model import resnet50_, xcit_small, fpn_resnet50_classification, densenet161_
+
+
+def generate_attention_maps(img, metadata, layers, task_name, model, model_type, device, filename=None, viz=True):
+
+    ts, va, vb, VA, VB = metadata['ts'], metadata['va'], metadata['vb'], metadata['VA'], metadata['VB']
+
+    ## generate attention maps
+    visualizer = AttentionMapVisualizer(device=device)
+    input_tensor = transforms.ToTensor()(img).unsqueeze(0)  # Example input tensor (N, C, H, W)
+    attention_map_resized_list, overlay_attention_map_list = [], []
+    for i, layer in enumerate(layers):
+        if model_type == 'ResNet50':
+            input_image_np, attention_map_resized = visualizer.generate_cnn_attention_map(model, input_tensor, layer_name=layer)
+        elif model_type == 'XCiT':
+            input_image_np, attention_map_resized = visualizer.generate_transformer_attention_map(model, input_tensor, attention_layer_idx=layer)
+        overlay_attention_map = visualizer.generate_overlay_attention_map(input_image_np, attention_map_resized, alpha=0.4)
+        attention_map_resized_list.append(attention_map_resized)
+        overlay_attention_map_list.append(overlay_attention_map)
+
+            
+    if viz:
+        num_figs = len(layers)+1
+        fig, axes = layout_fig(num_figs, num_figs, figsize=(2*num_figs, num_figs*2.8), subplot_style='subplots', layout='tight')
+        axes[0].imshow(input_image_np)
+        axes[0].axis('off')
+        axes[0].set_title(f'Input Image')
+        for i, ax in enumerate(axes[1:]):
+            ax.imshow(overlay_attention_map_list[i])
+            ax.axis('off')
+            ax.set_title(f'{layers[i]}')
+                    
+        plt.suptitle(f"{task_name}", fontsize=10)
+        if filename:
+            plt.savefig(f'{filename}.png', dpi=600)
+            plt.savefig(f'{filename}.svg', dpi=600)
+        
+        plt.show()
+        
+    return input_image_np, overlay_attention_map_list, overlay_attention_map_list
+
+
 
 class AttentionMapVisualizer:
     def __init__(self, device=torch.device("cpu")):
