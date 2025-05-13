@@ -181,7 +181,9 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 
-def generate_prediction_example(model, data_source, confusion_pair, classes, device, k=5, batch_limit=100, group=None, viz=True):
+
+
+def find_confused_sample(model, data_source, confusion_pair, classes, device, batch_limit=100, group=None):
     """
     Finds and visualizes the most confused cases between two classes efficiently.
     Supports both PyTorch dataloader and HDF5 dataset as input.
@@ -196,10 +198,9 @@ def generate_prediction_example(model, data_source, confusion_pair, classes, dev
         k (int): Number of top wrong predictions to display.
         batch_limit (int): Max batches to process.
         group (str): Group name when using HDF5 dataset.
-        viz (bool): Whether to visualize the misclassified sample.
 
     Returns:
-        tuple: (image, label, top_predictions, probs) or raises ValueError if no misclassified sample is found.
+        tuple: (image, label_str, metadata) or raises ValueError if no misclassified sample is found.
     """
     model.eval()
     model = model.to(device)
@@ -265,14 +266,14 @@ def generate_prediction_example(model, data_source, confusion_pair, classes, dev
             with torch.no_grad():
                 outputs = model(data_t)
                 preds = torch.nn.functional.softmax(outputs, dim=1)
-                top_probs, top_classes = preds.topk(k)
+                top_probs, top_classes = preds.topk(5)
 
             # Find misclassified samples (t → p)
             misclassified_mask = top_classes[:, 0] == p_n
             misclassified_data = data_t[misclassified_mask]
             misclassified_labels = labels_t[misclassified_mask]
-            misclassified_top_probs = top_probs[misclassified_mask]
-            misclassified_top_classes = top_classes[misclassified_mask]
+            # misclassified_top_probs = top_probs[misclassified_mask]
+            # misclassified_top_classes = top_classes[misclassified_mask]
 
             if len(misclassified_data) == 0:
                 continue  # No misclassifications in this batch
@@ -281,8 +282,8 @@ def generate_prediction_example(model, data_source, confusion_pair, classes, dev
             i = np.random.randint(0, len(misclassified_data))
             image = misclassified_data[i].cpu().permute(1,2,0).numpy()
             label = classes[misclassified_labels[i].item()]
-            top_predictions = [classes[idx.item()] for idx in misclassified_top_classes[i]]
-            probs = misclassified_top_probs[i]
+            # top_predictions = [classes[idx.item()] for idx in misclassified_top_classes[i]]
+            # probs = misclassified_top_probs[i]
             break
         else:
             raise ValueError(f"No misclassified samples found after {batch_limit} batches.")
@@ -290,14 +291,37 @@ def generate_prediction_example(model, data_source, confusion_pair, classes, dev
         label_str = label
         
     # Visualization
+    # info = f"True: {t} | Predicted: {p}\n"
+    # info += ", ".join(f"{cls}: {prob.item() * 100:.2f}%" for cls, prob in zip(top_predictions, probs))
+    show_prediction_example(image, model, confusion_pair, classes, device, k=5, metadata=metadata)
+
+    # return image, label_str, top_predictions, probs, metadata, info
+    return image, label_str, metadata
+
+
+def show_prediction_example(image, model, confusion_pair, classes, device, k=5, metadata=None):
+    """
+    Takes an image, runs prediction with the model, and visualizes the stats and image.
+    """
+    model.eval()
+    model = model.to(device)
+    t, p = confusion_pair
+    img_tensor = torch.tensor(image.transpose(2, 0, 1), dtype=torch.float32).unsqueeze(0).to(device)
+    with torch.no_grad():
+        outputs = model(img_tensor)
+        preds = torch.nn.functional.softmax(outputs, dim=1)
+        top_probs, top_classes = preds.topk(k)
+    top_predictions = [classes[idx.item()] for idx in top_classes[0]]
+    probs = top_probs[0]
     info = f"True: {t} | Predicted: {p}\n"
     info += ", ".join(f"{cls}: {prob.item() * 100:.2f}%" for cls, prob in zip(top_predictions, probs))
-    if viz:
-        plt.figure(figsize=(5, 4))
-        plt.imshow(image)  # Convert (C, H, W) to (H, W, C)
-        plt.title(info)
-        plt.axis("off")
-        plt.show()
-    
-    return image, label_str, top_predictions, probs, metadata, info
+    if metadata:
+        for mk, mv in metadata.items():
+            info += f"\n{mk}: {mv}"
+    plt.figure(figsize=(5, 4))
+    plt.imshow(image)
+    plt.title(info)
+    plt.axis("off")
+    plt.show()
+    return info
 

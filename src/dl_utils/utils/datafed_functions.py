@@ -120,7 +120,7 @@ def datafed_upload_folder(folder_path, parent_id=None, metadata=None, wait=True,
         file_path = os.path.join(folder_path, file)
         try:
             print(f"Uploading file '{file}' to collection '{folder_name}'...")
-            datafed_upload(file_path, parent_id=collection_id, metadata=metadata, wait=False)
+            datafed_upload(file_path, parent_id=collection_id, metadata=metadata, wait=wait)
             print(f"Uploaded '{file}'")
         except Exception as e:
             print(f"Error uploading file '{file}': {e}")

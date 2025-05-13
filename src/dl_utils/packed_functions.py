@@ -10,10 +10,8 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 from m3util.viz.layout import layout_fig
 
-from dl_utils.analysis.case_analysis import generate_prediction_example
 from dl_utils.analysis.confusion_matrix import show_multiple_cm, confusion_matrix
-from dl_utils.analysis.attention_map import AttentionMapVisualizer
-from dl_utils.utils.utils import list_to_dict, sort_tasks_by_size, viz_h5_structure, find_symm_index_in_hdf5, fetch_img_metadata, find_last_epoch_file
+from dl_utils.utils.utils import list_to_dict, sort_tasks_by_size, find_last_epoch_file
 from dl_utils.utils.dataset import viz_dataloader, split_train_valid, hdf5_dataset
 from dl_utils.training.build_model import resnet50_, xcit_small, fpn_resnet50_classification, densenet161_
 from dl_utils.training.trainer import Trainer, accuracy
@@ -45,8 +43,6 @@ def viz_4confusion_matrix(cm_files, title, symmetry_classes, filename=None):
     plt.show()
     
     return cm_list
-
-
 
 
 def generate_confusion_matrix_batch(model_path_list, ds_size_list, ds_path_info, running_specs):

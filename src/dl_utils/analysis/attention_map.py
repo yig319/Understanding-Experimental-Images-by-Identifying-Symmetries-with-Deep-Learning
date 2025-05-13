@@ -190,10 +190,11 @@ class AttentionMapVisualizer:
         else:
             attention_map = NormalizeData(attention_map)  # Normalize the attention map
             # Resize the attention map to match the input image resolution
-            attention_map_resized = np.array(
-                Image.fromarray(attention_map).resize(input_image_np.shape[:2], Image.BILINEAR)
-            )
-            
+            # attention_map_resized = np.array(
+            #     Image.fromarray(attention_map).resize(input_image_np.shape[:2], Image.BILINEAR)
+            # )
+            attention_map_resized = np.copy(attention_map)
+
         return input_image_np, attention_map_resized
     
     
@@ -209,13 +210,14 @@ class AttentionMapVisualizer:
             np.ndarray: The overlayed attention map.
         """
        # Apply the colormap
-        cmap = plt.get_cmap(colormap)
-        colored_attention_map = cmap(attention_map_resized)[:, :, :3] # Keep RGB only
+        # cmap = plt.get_cmap(colormap)
+        # colored_attention_map = cmap(attention_map_resized)[:, :, :3] # Keep RGB only
 
-        # Create overlay manually
-        overlay = (alpha * input_image_np + (1 - alpha) * (colored_attention_map * 255)).astype("uint8")
-        return overlay
-    
+        # # Create overlay manually
+        # overlay = (alpha * input_image_np + (1 - alpha) * (colored_attention_map * 255)).astype("uint8")
+
+        # return overlay
+        return attention_map_resized
     
     def visualize_attention_map(self, input_image_np, attention_map_resized, keyword, fig=None, axes=None, title=None):
         """
