@@ -76,15 +76,30 @@ def datafed_update_record(record_id, metadata):
     print(du_resp)
     
 
+def datafed_find_object_by_name(name, parent_id):
+    df_api = API()
+
+    """Search for collection by name under parent collection."""
+    coll_list_resp = df_api.collectionItemsList(parent_id)
+    for coll in coll_list_resp[0].item:
+        if coll.title == name:
+            return coll
+    return None
+
 def datafed_upload_folder(folder_path, parent_id=None, metadata=None, wait=True, rule=None):
     """
-    Recursively uploads folders and selectively uploads files based on a provided rule.
+    Recursively uploads folders and selectively uploads files to DataFed, while avoiding duplicates.
 
     Steps:
-    1. Creates a DataFed collection for the given folder.
+    1. Checks if a DataFed collection matching the folder name exists under `parent_id`.
+       - If exists, reuses the collection.
+       - Otherwise, creates a new collection.
     2. Applies a selection rule (if provided) to filter files before upload.
-    3. Uploads selected files into the collection.
-    4. Recursively handles subfolders by creating sub-collections and repeating the process.
+    3. For each file:
+       - Checks if a file with the same name already exists in the collection.
+       - If exists, skips the upload.
+       - Otherwise, uploads the file.
+    4. Recursively handles subfolders by creating or reusing sub-collections and repeating the process.
 
     Parameters:
     - folder_path (str): Path to the root folder to recursively upload.
@@ -95,28 +110,35 @@ def datafed_upload_folder(folder_path, parent_id=None, metadata=None, wait=True,
       as arguments and return a filtered list of filenames. Defaults to None (uploads all files).
 
     Returns:
-    - str: Collection ID of the newly created DataFed collection.
+    - str: Collection ID of the created or reused DataFed collection.
     """
-    
+
     folder_name = os.path.basename(folder_path.rstrip('/'))
 
-    # Create collection for the current folder
-    coll_resp = datafed_create_collection(folder_name, parent_id=parent_id)
-    collection_id = coll_resp[0].coll[0].id
-    print(f"Created collection '{folder_name}' with ID: {collection_id}")
+    # Check if collection exists
+    existing_coll = datafed_find_object_by_name(folder_name, parent_id)
+    if existing_coll:
+        collection_id = existing_coll.id
+        print(f"Using existing collection '{folder_name}' with ID: {collection_id}")
+    else:
+        coll_resp = datafed_create_collection(folder_name, parent_id=parent_id)
+        collection_id = coll_resp[0].coll[0].id
+        print(f"Created collection '{folder_name}' with ID: {collection_id}")
 
     entries = os.listdir(folder_path)
-
-    # Separate files and directories
     files = [e for e in entries if os.path.isfile(os.path.join(folder_path, e))]
     dirs = [e for e in entries if os.path.isdir(os.path.join(folder_path, e))]
 
-    # Apply rule (if provided) on files only
     if rule is not None:
         files = rule(files, folder_path)
 
-    # Upload selected files
+    # Upload files, skip if exists
     for file in files:
+        existing_file = datafed_find_object_by_name(file, collection_id)
+        if existing_file:
+            print(f"Skipping existing file '{file}' in collection '{folder_name}'.")
+            continue
+
         file_path = os.path.join(folder_path, file)
         try:
             print(f"Uploading file '{file}' to collection '{folder_name}'...")
@@ -125,10 +147,11 @@ def datafed_upload_folder(folder_path, parent_id=None, metadata=None, wait=True,
         except Exception as e:
             print(f"Error uploading file '{file}': {e}")
 
-    # Recursively handle sub-directories
+    # Recursively handle subfolders
     for dir in dirs:
         dir_path = os.path.join(folder_path, dir)
         datafed_upload_folder(dir_path, parent_id=collection_id, metadata=metadata, wait=wait, rule=rule)
 
     print(f"Finished uploading '{folder_name}'.")
     return collection_id
+

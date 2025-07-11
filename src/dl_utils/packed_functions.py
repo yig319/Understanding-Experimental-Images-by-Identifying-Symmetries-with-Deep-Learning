@@ -45,7 +45,7 @@ def viz_4confusion_matrix(cm_files, title, symmetry_classes, filename=None):
     return cm_list
 
 
-def generate_confusion_matrix_batch(model_path_list, ds_size_list, ds_path_info, running_specs):
+def generate_confusion_matrix_batch_full_val_set_add_noise(model, model_path_list, ds_size_list, ds_path_info, running_specs, noise_std=0.1):
     
     '''
     Example inputs:
@@ -66,22 +66,210 @@ def generate_confusion_matrix_batch(model_path_list, ds_size_list, ds_path_info,
     '''
      # model 
     device = torch.device('cuda:{}'.format(running_specs['device_ids'][0]))
-    if len(running_specs['device_ids']) > 1:
-        model = torch.nn.DataParallel(model, device_ids=running_specs['device_ids'])
-    else:
-        model = model.to(device)
-
 
     stats = {}
-
+    print(f'Running on {device}')
     for dir_path, ds_size in zip(model_path_list, ds_size_list):
+        
+        stats_running = {}
         
         task = os.path.basename(dir_path)
         file = find_last_epoch_file(glob.glob(f'{dir_path}/*'))
-        model = xcit_small(in_channels=3, n_classes=17)
+        # model = xcit_small(in_channels=3, n_classes=17)
+        print(f'Loading model from {file}')
         model.load_state_dict(torch.load(file, weights_only=True))
+        if len(running_specs['device_ids']) > 1:
+            model = torch.nn.DataParallel(model, device_ids=running_specs['device_ids'])
+        else:
+            model = model.to(device)
+            
         model.eval()
+
+        # symmetry classes
+        symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
+        label_converter = list_to_dict(symmetry_classes)
+
+
+        import torchvision.transforms as T
+        class AddGaussianNoise(object):
+            def __init__(self, mean=0.0, std=0.1, clamp=True):
+                self.mean = mean
+                self.std = std
+                self.clamp = clamp
+
+            def __call__(self, tensor):
+                noisy = tensor + torch.randn_like(tensor) * self.std + self.mean
+                if self.clamp:
+                    noisy = torch.clamp(noisy, 0.0, 1.0)
+                return noisy
+
+            def __repr__(self):
+                return f"{self.__class__.__name__}(mean={self.mean}, std={self.std}, clamp={self.clamp})"
+
+        transform = T.Compose([
+            T.ToTensor(),
+            AddGaussianNoise(mean=0.0, std=noise_std),
+        ])
+        symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
+        label_converter = list_to_dict(symmetry_classes)
         
+        # noise
+        noise_ds = hdf5_dataset(ds_path_info['noise'], folder='noise', transform=transform)
+        noise_dl = DataLoader(noise_ds, batch_size=running_specs['batch_size'], shuffle=False, num_workers=running_specs['num_workers'])
+        viz_dataloader(noise_dl, label_converter=label_converter, title='noise_dl')
+
+
+        # atom
+        atom_ds = hdf5_dataset(ds_path_info['atom'], folder='atom', transform=transform)
+        atom_dl = DataLoader(atom_ds, batch_size=running_specs['batch_size'], shuffle=False, num_workers=running_specs['num_workers'])
+        viz_dataloader(atom_dl, label_converter=label_converter, title='atom_dl')
+        
+        print(f'Confusion Matrix for {task}:')
+        
+        cm, accuracy = confusion_matrix(model, atom_dl, symmetry_classes, device, n_batches='all')
+        np.save(f'../../../results/XCiT/{task}-atom_cross_validation_cm_full_val_add_noise_{noise_std}.npy', cm)
+        stats_running[f'{task}-atom_cv'] = accuracy
+
+        cm, accuracy = confusion_matrix(model, noise_dl, symmetry_classes, device, n_batches='all')
+        np.save(f'../../../results/XCiT/{task}-noise_cross_validation_cm_full_val_add_noise_{noise_std}.npy', cm)
+        stats_running[f'{task}-noise_cv'] = accuracy
+        
+        stats[f'{task}'] = stats_running
+    return stats
+
+
+def generate_confusion_matrix_batch_full_val_set(model, model_path_list, ds_size_list, ds_path_info, running_specs, subset_size=None):
+    
+    '''
+    Example inputs:
+    
+    task_orders = ['1k', '10k', '100k', '500k', '1m', '2m', '5m', '10m']
+    ds_size_list = [1000, 10000, 100000, 500000, 1000000, 2000000, 5000000, 10000000]
+    dir_path_list = sort_tasks_by_size(glob.glob('../../../models/ResNet50/*'), task_orders)
+    ds_path_info = {'imagenet': '../../../datasets/imagenet_v5_rot_10m_fix_vector.h5',
+                'noise': '../../../datasets/noise_v5_rot_1m_fix_vector.h5',
+                'atom': '../../../datasets/atom_v5_rot_1m_fix_vector.h5'
+                }
+    running_specs = {'batch_size': 2800, 
+                    'num_workers': 12, 
+                    'save_path': '../../../results/ResNet50/',
+                    'device_ids': [0],
+    }
+    
+    '''
+     # model 
+    device = torch.device('cuda:{}'.format(running_specs['device_ids'][0]))
+
+    stats = {}
+    print(f'Running on {device}')
+    for dir_path, ds_size in zip(model_path_list, ds_size_list):
+        
+        stats_running = {}
+        
+        task = os.path.basename(dir_path)
+        file = find_last_epoch_file(glob.glob(f'{dir_path}/*'))
+        # model = xcit_small(in_channels=3, n_classes=17)
+        print(f'Loading model from {file}')
+        model.load_state_dict(torch.load(file, weights_only=True))
+        if len(running_specs['device_ids']) > 1:
+            model = torch.nn.DataParallel(model, device_ids=running_specs['device_ids'])
+        else:
+            model = model.to(device)
+            
+        model.eval()
+
+        # symmetry classes
+        symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
+        label_converter = list_to_dict(symmetry_classes)
+
+        # imagenet
+        # imagenet_ds = hdf5_dataset(ds_path_info['imagenet'], folder='imagenet', transform=transforms.ToTensor())
+        # ratio = ds_size * (1/0.8) / len(imagenet_ds)
+        # imagenet_ds, _ = split_train_valid(imagenet_ds, ratio, seed=42)
+        # train_ds, valid_ds = split_train_valid(imagenet_ds, 0.8, seed=42) 
+        # train_dl = DataLoader(train_ds, batch_size=running_specs['batch_size'], shuffle=True, num_workers=running_specs['num_workers'])
+        # valid_dl = DataLoader(valid_ds, batch_size=running_specs['batch_size'], shuffle=False, num_workers=running_specs['num_workers'])
+
+        # noise
+        noise_ds = hdf5_dataset(ds_path_info['noise'], folder='noise', transform=transforms.ToTensor())
+        if subset_size is not None:
+            ratio = np.min((subset_size / len(noise_ds), 1))
+            noise_ds, rest_ds = split_train_valid(noise_ds, ratio, seed=42)
+        noise_dl = DataLoader(noise_ds, batch_size=running_specs['batch_size'], shuffle=False, num_workers=running_specs['num_workers'])
+        
+        # atom
+        atom_ds = hdf5_dataset(ds_path_info['atom'], folder='atom', transform=transforms.ToTensor())
+        if subset_size is not None:
+            ratio = np.min((subset_size / len(atom_ds), 1))
+            atom_ds, rest_ds = split_train_valid(atom_ds, ratio, seed=42)
+        atom_dl = DataLoader(atom_ds, batch_size=running_specs['batch_size'], shuffle=False, num_workers=running_specs['num_workers'])
+        
+        print(f'Confusion Matrix for {task}:')
+        
+        # cm, accuracy = confusion_matrix(model, train_dl, symmetry_classes, device, n_batches='all')
+        # np.save(f'../../../results/XCiT/{task}-imagenet_train_cm.npy', cm)
+        # # plot_cm(cm, symmetry_classes, title='ResNet50-ImageNet-Train', cm_style='simple', fig_style='printing', font_size=4)
+        # stats_running[f'{task}-train'] = accuracy
+
+        # cm, accuracy = confusion_matrix(model, valid_dl, symmetry_classes, device, n_batches='all')
+        # np.save(f'../../../results/XCiT/{task}-imagenet_valid_cm.npy', cm)
+        # # plot_cm(cm, symmetry_classes, title='ResNet50-ImageNet-Train', cm_style='simple', fig_style='printing', font_size=4)
+        # stats_running[f'{task}-valid'] = accuracy
+
+        cm, accuracy = confusion_matrix(model, atom_dl, symmetry_classes, device, n_batches='all')
+        np.save(f'../../../results/XCiT/{task}-atom_cross_validation_cm_full_val.npy', cm)
+        # plot_cm(cm, symmetry_classes, title='ResNet50-Atom-Cross_Validation', cm_style='simple', fig_style='printing', font_size=4)
+        stats_running[f'{task}-atom_cv'] = accuracy
+
+        cm, accuracy = confusion_matrix(model, noise_dl, symmetry_classes, device, n_batches='all')
+        np.save(f'../../../results/XCiT/{task}-noise_cross_validation_cm_full_val.npy', cm)
+        # plot_cm(cm, symmetry_classes, title='ResNet50-Atom-Cross_Validation', cm_style='simple', fig_style='printing', font_size=4)
+        stats_running[f'{task}-noise_cv'] = accuracy
+        
+        stats[f'{task}'] = stats_running
+    return stats
+
+
+def generate_confusion_matrix_batch(model, model_path_list, ds_size_list, ds_path_info, running_specs):
+    
+    '''
+    Example inputs:
+    
+    task_orders = ['1k', '10k', '100k', '500k', '1m', '2m', '5m', '10m']
+    ds_size_list = [1000, 10000, 100000, 500000, 1000000, 2000000, 5000000, 10000000]
+    dir_path_list = sort_tasks_by_size(glob.glob('../../../models/ResNet50/*'), task_orders)
+    ds_path_info = {'imagenet': '../../../datasets/imagenet_v5_rot_10m_fix_vector.h5',
+                'noise': '../../../datasets/noise_v5_rot_1m_fix_vector.h5',
+                'atom': '../../../datasets/atom_v5_rot_1m_fix_vector.h5'
+                }
+    running_specs = {'batch_size': 2800, 
+                    'num_workers': 12, 
+                    'save_path': '../../../results/ResNet50/',
+                    'device_ids': [0],
+    }
+    
+    '''
+     # model 
+    device = torch.device('cuda:{}'.format(running_specs['device_ids'][0]))
+
+    stats = {}
+    print(f'Running on {device}')
+    for dir_path, ds_size in zip(model_path_list, ds_size_list):
+        
+        stats_running = {}
+        
+        task = os.path.basename(dir_path)
+        file = find_last_epoch_file(glob.glob(f'{dir_path}/*'))
+        # model = xcit_small(in_channels=3, n_classes=17)
+        print(f'Loading model from {file}')
+        model.load_state_dict(torch.load(file, weights_only=True))
+        if len(running_specs['device_ids']) > 1:
+            model = torch.nn.DataParallel(model, device_ids=running_specs['device_ids'])
+        else:
+            model = model.to(device)
+            
+        model.eval()
+
         # symmetry classes
         symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
         label_converter = list_to_dict(symmetry_classes)
@@ -111,24 +299,25 @@ def generate_confusion_matrix_batch(model_path_list, ds_size_list, ds_path_info,
         cm, accuracy = confusion_matrix(model, train_dl, symmetry_classes, device, n_batches='all')
         np.save(f'../../../results/XCiT/{task}-imagenet_train_cm.npy', cm)
         # plot_cm(cm, symmetry_classes, title='ResNet50-ImageNet-Train', cm_style='simple', fig_style='printing', font_size=4)
-        stats[f'{task}-train'] = accuracy
+        stats_running[f'{task}-train'] = accuracy
 
         cm, accuracy = confusion_matrix(model, valid_dl, symmetry_classes, device, n_batches='all')
         np.save(f'../../../results/XCiT/{task}-imagenet_valid_cm.npy', cm)
         # plot_cm(cm, symmetry_classes, title='ResNet50-ImageNet-Train', cm_style='simple', fig_style='printing', font_size=4)
-        stats[f'{task}-valid'] = accuracy
+        stats_running[f'{task}-valid'] = accuracy
 
         cm, accuracy = confusion_matrix(model, atom_dl, symmetry_classes, device, n_batches='all')
         np.save(f'../../../results/XCiT/{task}-atom_cross_validation_cm.npy', cm)
         # plot_cm(cm, symmetry_classes, title='ResNet50-Atom-Cross_Validation', cm_style='simple', fig_style='printing', font_size=4)
-        stats[f'{task}-atom_cv'] = accuracy
+        stats_running[f'{task}-atom_cv'] = accuracy
 
         cm, accuracy = confusion_matrix(model, noise_dl, symmetry_classes, device, n_batches='all')
         np.save(f'../../../results/XCiT/{task}-noise_cross_validation_cm.npy', cm)
         # plot_cm(cm, symmetry_classes, title='ResNet50-Atom-Cross_Validation', cm_style='simple', fig_style='printing', font_size=4)
-        stats[f'{task}-noise_cv'] = accuracy
+        stats_running[f'{task}-noise_cv'] = accuracy
         
-        return stats
+        stats[f'{task}'] = stats_running
+    return stats
     
 
 

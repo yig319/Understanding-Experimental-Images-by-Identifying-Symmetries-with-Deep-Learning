@@ -313,7 +313,7 @@ def show_prediction_example(image, model, confusion_pair, classes, device, k=5, 
         top_probs, top_classes = preds.topk(k)
     top_predictions = [classes[idx.item()] for idx in top_classes[0]]
     probs = top_probs[0]
-    info = f"True: {t} | Predicted: {p}\n"
+    info = f"True: {t} | Predicted: {top_predictions[0]}\n"
     info += ", ".join(f"{cls}: {prob.item() * 100:.2f}%" for cls, prob in zip(top_predictions, probs))
     if metadata:
         for mk, mv in metadata.items():

@@ -62,33 +62,31 @@ def get_random_batch_indices(dataset, batch_size):
     dataset_size = len(dataset)
     return random.sample(range(dataset_size), batch_size)
 
-
 def sort_tasks_by_size(file_paths, size_order):
-    # Function to extract the size label from a file path
-    def extract_size_label(file_path):
-        # Match patterns like "size-1k", "size-10k", "size-100k", etc.
-        match = re.search(r'size-(\d+k|\d+m|\d+)', file_path)
-        if match:
-            return match.group(1)  # Return the size label (e.g., "1k", "10k", "100k")
-        return None
+    # Mapping from size label to sort index
+    size_to_index = {label: i for i, label in enumerate(size_order)}
 
-    # Sort the file paths based on the custom size order
-    sorted_file_paths = sorted(
+    def extract_size_label(file_path):
+        # Ensure we match suffix like '-10k', '-5m' at the end of the filename
+        match = re.search(r'-([\d]+[km])$', file_path)
+        return match.group(1) if match else None
+
+    # Sort using precomputed index from size_order
+    return sorted(
         file_paths,
-        key=lambda x: size_order.index(extract_size_label(x)) if extract_size_label(x) in size_order else float('inf')
+        key=lambda x: size_to_index.get(extract_size_label(x), float('inf'))
     )
-    
-    return sorted_file_paths
+
     
 def find_last_epoch_file(files):
-    # Function to extract the epoch number from a file path
+    # Updated function to extract the epoch number from filenames like:
+    # epoch_22-valid:loss=0.04,acc=0.99.pth
     def extract_epoch_number(file_path):
-        match = re.search(r'model_epoch_(\d+)\.pth', file_path)
+        match = re.search(r'epoch_(\d+)', file_path)
         if match:
             return int(match.group(1))
-        return -1  # Return -1 if no match is found
+        return -1  # Return -1 if no epoch number found
 
-    # Find the file path with the highest epoch number
     max_epoch_number = -1
     max_file_path = None
 
@@ -98,12 +96,10 @@ def find_last_epoch_file(files):
             max_epoch_number = epoch_number
             max_file_path = file_path
 
-    # Output the result
     if not max_file_path:
-        print("No valid file paths found.")
+        print("No valid epoch file found.")
         
     return max_file_path
-
 
 def numpy_to_tensor(image):
     # Ensure the image is in the correct format (H, W, C) and type
