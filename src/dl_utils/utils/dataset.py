@@ -99,7 +99,7 @@ def split_train_valid(dataset, train_ratio=0.8, seed=42):
 
 class hdf5_dataset(Dataset):
     
-    def __init__(self, file_path, folder=None, transform=None, data_key='data', label_key='labels', classes=[]):
+    def __init__(self, file_path, folder=None, transform=None, data_key='data', label_key='labels', classes=[], metadata_keys=None):
         self.file_path = file_path
         self.folder = folder
         self.transform = transform
@@ -107,6 +107,10 @@ class hdf5_dataset(Dataset):
         self.data_key = data_key
         self.label_key = label_key
         self.classes = classes
+        # Optional: list of additional HDF5 keys to fetch per sample
+        # If provided, __getitem__ will return (image, label, metadata)
+        # where metadata is a dict {key: tensor/ndarray} for the requested keys
+        self.metadata_keys = metadata_keys
 
     def __len__(self):
         with h5py.File(self.file_path, 'r') as f:
@@ -137,7 +141,28 @@ class hdf5_dataset(Dataset):
         
         if self.transform:
             image = self.transform(image)
-        
+
+        # Optionally fetch per-sample metadata
+        if self.metadata_keys:
+            meta = {}
+            keys = self.metadata_keys if isinstance(self.metadata_keys, (list, tuple)) else [self.metadata_keys]
+            for k in keys:
+                if self.folder:
+                    if k not in self.hf[self.folder]:
+                        raise KeyError(f"Metadata key '{k}' not found in folder '{self.folder}'. Available: {list(self.hf[self.folder].keys())}")
+                    v = self.hf[self.folder][k][idx]
+                else:
+                    if k not in self.hf:
+                        raise KeyError(f"Metadata key '{k}' not found at root. Available: {list(self.hf.keys())}")
+                    v = self.hf[k][idx]
+                # Convert to tensor where possible
+                try:
+                    v_t = torch.as_tensor(v)
+                except Exception:
+                    v_t = v
+                meta[k] = v_t
+            return image, torch.as_tensor(label), meta
+
         return image, torch.tensor(label)
     
     def list_metrics(self):

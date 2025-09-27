@@ -111,6 +111,28 @@ def datafed_upload_folder(folder_path, parent_id=None, metadata=None, wait=True,
 
     Returns:
     - str: Collection ID of the created or reused DataFed collection.
+    
+    Example rule function and usage:
+    # Define your filtering rule clearly outside
+    def latest_n_files(files, folder_path, pattern=r'model_epoch_(\d+)\.pth', n=10):
+        matched_files = []
+        for file in files:
+            match = re.match(pattern, file)
+            if match:
+                epoch_num = int(match.group(1))
+                matched_files.append((epoch_num, file))
+        matched_files.sort(reverse=True)
+        selected_files = [file for _, file in matched_files[:n]]
+        return selected_files
+
+    # Start the recursive upload with the rule
+    root_folder = "../models/03102025-NeuralODE-dstaset_size=1000000/"
+    datafed_upload_folder(
+        root_folder,
+        parent_id='c/503917703',
+        rule=lambda files, path: latest_n_files(files, path, n=5)
+    )
+    
     """
 
     folder_name = os.path.basename(folder_path.rstrip('/'))

@@ -284,7 +284,12 @@ class Trainer:
         records = self.records
         
         total_loss = 0.0
-        metric_values = {metric.__name__: 0.0 for metric in self.metrics}
+        # Use defaultdict so we can accumulate metrics introduced at runtime
+        # (e.g., loss_base, loss_contrastive) without KeyError.
+        from collections import defaultdict as _dd
+        metric_values = _dd(float)
+        for metric in self.metrics:
+            metric_values[metric.__name__] = 0.0
 
         for batch in tqdm(data_loader, desc=f"{mode.capitalize()}", disable=skip_validation_print):
 
@@ -365,7 +370,12 @@ class Trainer:
         return early_stop
 
     def run_batch(self, batch, mode):
-        inputs, labels = batch
+        # Support optional metadata in batch: (inputs, labels, metadata)
+        if isinstance(batch, (list, tuple)) and len(batch) == 3:
+            inputs, labels, metadata = batch
+        else:
+            inputs, labels = batch
+            metadata = None
         inputs = inputs.to(self.device).float()
         labels = labels.to(self.device)
 
@@ -378,16 +388,25 @@ class Trainer:
 
         with torch.set_grad_enabled(mode == 'train'):
             outputs = self.model(inputs)
-            
-            # Handle different types of loss functions
-            if isinstance(self.loss_func, nn.Module):
+
+            # Compute loss; pass metadata if the loss accepts it
+            try:
+                loss = self.loss_func(outputs, labels, metadata)  # e.g., contrastive-regularized loss
+            except TypeError:
+                # Fallback for standard criteria expecting (outputs, labels)
                 loss = self.loss_func(outputs, labels)
-            elif callable(self.loss_func):
-                loss = self.loss_func(outputs, labels)
-            else:
-                raise TypeError("loss_func must be a nn.Module or a callable")
 
             batch_metrics = {metric.__name__: metric(outputs, labels) for metric in self.metrics}
+
+            # If the loss provides component details, include them in metrics for logging/averaging
+            loss_parts = getattr(self.loss_func, 'last_components', None)
+            if isinstance(loss_parts, dict):
+                base_val = loss_parts.get('base')
+                contr_val = loss_parts.get('contrastive')
+                if isinstance(base_val, (int, float)):
+                    batch_metrics['loss_base'] = float(base_val)
+                if isinstance(contr_val, (int, float)):
+                    batch_metrics['loss_contrastive'] = float(contr_val)
 
             if mode == 'train':
                 loss.backward()
@@ -417,12 +436,12 @@ class Trainer:
         return sorted(validation_epoch_list)
 
     def save_model(self, epoch, keyword=None):
-        model_to_save = self.prepare_model_for_saving(self.model)
+        state_dict = self.prepare_model_for_saving(self.model)
         if keyword:
             save_path = f"{self.model_path}/epoch_{epoch}-{keyword}.pth"
         else:
             save_path = f"{self.model_path}/epoch_{epoch}.pth"
-        torch.save(model_to_save.state_dict(), save_path)
+        torch.save(state_dict, save_path)
         print(f"Model saved at epoch {epoch}")
 
     def load_model(self, path):
@@ -450,12 +469,18 @@ class Trainer:
         print(printing_str[:-2])
 
     def prepare_model_for_saving(self, model):
+        """Return a CPU state_dict without moving self.model off device.
+
+        This avoids inadvertently moving the training model to CPU during
+        validation checkpoints, which previously caused device/type mismatches
+        in subsequent iterations.
+        """
         if isinstance(model, nn.DataParallel):
-            return model.module
+            model = model.module
         if isinstance(model, nn.parallel.DistributedDataParallel):
-            return model.module
-        if next(model.parameters()).is_cuda:
-            return model.cpu()
+            model = model.module
+        # Clone to CPU safely without mutating original model device
+        return {k: v.detach().cpu() for k, v in model.state_dict().items()}
 
     def get_history(self):
         return dict(self.history)
