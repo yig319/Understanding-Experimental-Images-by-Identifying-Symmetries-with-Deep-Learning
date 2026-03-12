@@ -199,6 +199,7 @@ class Trainer:
         model_path: str,
         efficient_print: bool = False,
         early_stopping_patience: int = None,
+        print_batch_metrics: bool = False,
     ) -> None:
         
         self.device = device
@@ -211,6 +212,7 @@ class Trainer:
         self.model_path = model_path
         self.early_stopping_patience = early_stopping_patience
         self.efficient_print = efficient_print
+        self.print_batch_metrics = print_batch_metrics
         self.best_metric = None
         self.epochs_without_improvement = 0
         self.history = defaultdict(list)
@@ -220,7 +222,17 @@ class Trainer:
             if not os.path.exists(self.model_path):
                 os.makedirs(self.model_path)
 
-    def train(self, train_dl, epochs, epoch_start, valid_dl_list=None, valid_dl_names=None, valid_per_epochs=1, wandb_record=False):
+    def train(
+        self,
+        train_dl,
+        epochs,
+        epoch_start,
+        valid_dl_list=None,
+        valid_dl_names=None,
+        valid_per_epochs=1,
+        wandb_record=False,
+        contrastive_lambda_schedule=None,
+    ):
         self.epochs = epochs
         self.epoch_start = epoch_start
         self.valid_per_epochs = valid_per_epochs
@@ -238,6 +250,15 @@ class Trainer:
         
         for epoch in range(epoch_start, epochs+epoch_start):
             
+            if (
+                contrastive_lambda_schedule is not None
+                and hasattr(self.loss_func, 'lambda_contrastive')
+            ):
+                current_epoch = epoch - epoch_start
+                new_lambda = contrastive_lambda_schedule(current_epoch)
+                if new_lambda is not None:
+                    self.loss_func.lambda_contrastive = float(new_lambda)
+
             skip_validation_print = self.efficient_print and (epoch not in validation_epoch_list)
             if not skip_validation_print:
                 print(f"Epoch: {epoch+1}/{epochs+epoch_start}")
@@ -291,7 +312,18 @@ class Trainer:
         for metric in self.metrics:
             metric_values[metric.__name__] = 0.0
 
-        for batch in tqdm(data_loader, desc=f"{mode.capitalize()}", disable=skip_validation_print):
+        data_loader_length = len(data_loader)
+        iterator = (
+            data_loader
+            if self.print_batch_metrics
+            else tqdm(
+                data_loader,
+                desc=f"{mode.capitalize()}",
+                disable=skip_validation_print,
+            )
+        )
+
+        for batch_idx, batch in enumerate(iterator, start=1):
 
         # for batch in tqdm(data_loader):
             loss, batch_metrics = self.run_batch(batch, mode)
@@ -304,10 +336,21 @@ class Trainer:
                 batch_info.update({f"{name}_{k}": v for k, v in batch_metrics.items()})
                 # print('logging to wandb')
                 self.log_wandb(batch_info)
-            
+
             total_loss += loss * batch[0].size(0)
             for metric_name, metric_value in batch_metrics.items():
                 metric_values[metric_name] += metric_value * batch[0].size(0)
+
+            if self.print_batch_metrics and not skip_validation_print:
+                metric_str = ", ".join(
+                    f"{metric_name}: {metric_value:.4f}"
+                    for metric_name, metric_value in batch_metrics.items()
+                )
+                print(
+                    f"{mode.capitalize()} batch {batch_idx}/{data_loader_length} - "
+                    f"loss: {loss:.4f}"
+                    + (f", {metric_str}" if metric_str else "")
+                )
 
         # Calculate average loss and metrics for the entire epoch
         avg_loss = total_loss / data_size
@@ -317,7 +360,9 @@ class Trainer:
         information = {'epoch': epoch + 1}
         information.update({f"{name}_loss": avg_loss})
         information.update({f"{name}_{k}": v for k, v in avg_metrics.items()})
-        
+        if mode == 'train' and hasattr(self.loss_func, 'lambda_contrastive'):
+            information[f"{name}_lambda_contrastive"] = float(self.loss_func.lambda_contrastive)
+
         dtype_list = []
         for key in information.keys():
             if 'epoch' in key:
@@ -379,26 +424,35 @@ class Trainer:
         inputs = inputs.to(self.device).float()
         labels = labels.to(self.device)
 
-        # Check if labels need to be converted to long
         if isinstance(self.loss_func, (nn.CrossEntropyLoss, nn.NLLLoss)) and not labels.dtype.is_floating_point:
             labels = labels.long()
-        
+
         if mode == 'train':
             self.optimizer.zero_grad()
 
         with torch.set_grad_enabled(mode == 'train'):
-            outputs = self.model(inputs)
-
-            # Compute loss; pass metadata if the loss accepts it
+            features = None
             try:
-                loss = self.loss_func(outputs, labels, metadata)  # e.g., contrastive-regularized loss
+                outputs = self.model(inputs, return_features=True)
             except TypeError:
-                # Fallback for standard criteria expecting (outputs, labels)
+                outputs = self.model(inputs)
+
+            if isinstance(outputs, (list, tuple)) and len(outputs) == 2:
+                outputs, features = outputs
+
+            loss_kwargs = {}
+            if metadata is not None:
+                loss_kwargs['metadata'] = metadata
+            if features is not None:
+                loss_kwargs['features'] = features
+
+            try:
+                loss = self.loss_func(outputs, labels, **loss_kwargs)
+            except TypeError:
                 loss = self.loss_func(outputs, labels)
 
             batch_metrics = {metric.__name__: metric(outputs, labels) for metric in self.metrics}
 
-            # If the loss provides component details, include them in metrics for logging/averaging
             loss_parts = getattr(self.loss_func, 'last_components', None)
             if isinstance(loss_parts, dict):
                 base_val = loss_parts.get('base')
@@ -413,7 +467,7 @@ class Trainer:
                 self.optimizer.step()
                 if self.scheduler:
                     self.scheduler.step()
-                    
+
         return loss.item(), batch_metrics
 
     def get_validation_epochs(self, epochs, epoch_start, valid_per_epochs=1):
@@ -460,7 +514,9 @@ class Trainer:
             if dtype == 'int':
                 printing_str += f"{k}: {v}, "
             elif dtype == 'float':
-                if isinstance(v, float) and v < 1e-3:
+                if isinstance(v, float) and 'lambda' in k:
+                    printing_str += f"{k}: {v:.4e}, "
+                elif isinstance(v, float) and v < 1e-3:
                     printing_str += f"{k}: {v:.4e}, "
                 else:
                     printing_str += f"{k}: {v:.4f}, "

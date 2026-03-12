@@ -99,7 +99,7 @@ def split_train_valid(dataset, train_ratio=0.8, seed=42):
 
 class hdf5_dataset(Dataset):
     
-    def __init__(self, file_path, folder=None, transform=None, data_key='data', label_key='labels', classes=[], metadata_keys=None):
+    def __init__(self, file_path, folder=None, transform=None, data_key='data', label_key='labels', classes=[], metadata_keys=None, metadata_path=None, metadata_folder=None):
         self.file_path = file_path
         self.folder = folder
         self.transform = transform
@@ -107,10 +107,10 @@ class hdf5_dataset(Dataset):
         self.data_key = data_key
         self.label_key = label_key
         self.classes = classes
-        # Optional: list of additional HDF5 keys to fetch per sample
-        # If provided, __getitem__ will return (image, label, metadata)
-        # where metadata is a dict {key: tensor/ndarray} for the requested keys
         self.metadata_keys = metadata_keys
+        self.metadata_path = metadata_path
+        self.metadata_folder = metadata_folder if metadata_folder is not None else folder
+        self.meta_hf = None
 
     def __len__(self):
         with h5py.File(self.file_path, 'r') as f:
@@ -131,10 +131,9 @@ class hdf5_dataset(Dataset):
             image = np.array(self.hf[self.data_key][idx])
             label = np.array(self.hf[self.label_key][idx])
         
-        # Convert numpy array to PIL Image
         if image.dtype != np.uint8:
             image = (image * 255).astype(np.uint8)
-        if image.ndim == 2:  # If it's a grayscale image
+        if image.ndim == 2:
             image = Image.fromarray(image, mode='L')
         else:
             image = Image.fromarray(image)
@@ -142,20 +141,27 @@ class hdf5_dataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        # Optionally fetch per-sample metadata
         if self.metadata_keys:
             meta = {}
             keys = self.metadata_keys if isinstance(self.metadata_keys, (list, tuple)) else [self.metadata_keys]
+
+            if self.metadata_path:
+                if self.meta_hf is None:
+                    self.meta_hf = h5py.File(self.metadata_path, 'r')
+                meta_hf = self.meta_hf
+            else:
+                meta_hf = self.hf
+
+            if self.metadata_folder is not None:
+                meta_group = meta_hf[self.metadata_folder]
+            else:
+                meta_group = meta_hf
+
+            available_keys = meta_group.keys()
             for k in keys:
-                if self.folder:
-                    if k not in self.hf[self.folder]:
-                        raise KeyError(f"Metadata key '{k}' not found in folder '{self.folder}'. Available: {list(self.hf[self.folder].keys())}")
-                    v = self.hf[self.folder][k][idx]
-                else:
-                    if k not in self.hf:
-                        raise KeyError(f"Metadata key '{k}' not found at root. Available: {list(self.hf.keys())}")
-                    v = self.hf[k][idx]
-                # Convert to tensor where possible
+                if k not in available_keys:
+                    raise KeyError(f"Metadata key '{k}' not found in metadata group '{self.metadata_folder}'. Available: {list(available_keys)}")
+                v = meta_group[k][idx]
                 try:
                     v_t = torch.as_tensor(v)
                 except Exception:
@@ -164,7 +170,18 @@ class hdf5_dataset(Dataset):
             return image, torch.as_tensor(label), meta
 
         return image, torch.tensor(label)
-    
+
+    def close(self):
+        if self.meta_hf is not None:
+            self.meta_hf.close()
+            self.meta_hf = None
+        if self.hf is not None:
+            self.hf.close()
+            self.hf = None
+
+    def __del__(self):
+        self.close()
+
     def list_metrics(self):
         """List all available metric keys in the HDF5 dataset."""
         with h5py.File(self.file_path, 'r') as f:

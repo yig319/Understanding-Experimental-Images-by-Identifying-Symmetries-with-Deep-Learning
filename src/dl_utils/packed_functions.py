@@ -1,5 +1,6 @@
 import os
 import glob
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
@@ -416,6 +417,8 @@ def benchmark_task_contrastive(
     margin=1.0,
     feature_layer='avgpool',
     feature_norm=True,
+    metadata_weights=None,
+    contrastive_lambda_schedule=None,
 ):
     """
     Mirrors benchmark_task, but uses ContrastiveRegularizedLoss that aligns feature distances
@@ -423,6 +426,48 @@ def benchmark_task_contrastive(
 
     Provide the HDF5 `metadata_key` available under the same folder as data/labels.
     """
+
+    if metadata_key is None:
+        metadata_key = 'symmetry_vector'
+
+    if metadata_weights is None and metadata_key == 'symmetry_vector':
+        metadata_weights = [1.0] * 6 + [1.0 / 7.0] + [0.5] * 6
+
+    # Optional schedule to warm up lambda_contrastive
+    if contrastive_lambda_schedule is None and 'contrastive_warmup_epochs' in training_specs:
+        warmup_epochs = int(training_specs['contrastive_warmup_epochs'])
+        target_lambda = float(training_specs.get('lambda_contrastive_final', lambda_contrastive))
+        start_lambda = float(training_specs.get('lambda_contrastive_start', 0.0))
+        schedule_mode = training_specs.get('contrastive_lambda_schedule_type', 'linear').lower()
+
+        def _default_lambda_schedule(
+            epoch_idx: int,
+            *,
+            _warmup=warmup_epochs,
+            _start=start_lambda,
+            _target=target_lambda,
+            _mode=schedule_mode,
+        ):
+            if _warmup <= 0:
+                return _target
+
+            progress = min(1.0, max(0, epoch_idx) / _warmup)
+
+            if _mode == 'linear':
+                return _start + (_target - _start) * progress
+            if _mode == 'log':
+                if _start <= 0 or _target <= 0:
+                    raise ValueError('Log schedule requires positive lambda_contrastive start and final values.')
+                log_start = math.log(_start)
+                log_target = math.log(_target)
+                return math.exp(log_start + (log_target - log_start) * progress)
+
+            raise ValueError(f"Unsupported contrastive lambda schedule type '{_mode}'. Use 'linear' or 'log'.")
+
+        contrastive_lambda_schedule = _default_lambda_schedule
+
+    if contrastive_lambda_schedule is not None:
+        lambda_contrastive = float(contrastive_lambda_schedule(0))
 
     # symmetry classes
     symmetry_classes = ['p1', 'p2', 'pm', 'pg', 'cm', 'pmm', 'pmg', 'pgg', 'cmm', 'p4', 'p4m', 'p4g', 'p3', 'p3m1', 'p31m', 'p6', 'p6m']
@@ -434,6 +479,8 @@ def benchmark_task_contrastive(
         folder='imagenet',
         transform=transforms.ToTensor(),
         metadata_keys=metadata_key,
+        metadata_path=ds_path_info.get('metadata'),
+        metadata_folder='imagenet',
     )
     ratio = training_specs['ds_size'] * (1/0.8) / len(imagenet_ds)
     imagenet_ds, _ = split_train_valid(imagenet_ds, ratio, seed=42)
@@ -489,7 +536,6 @@ def benchmark_task_contrastive(
     base_ce = nn.CrossEntropyLoss()
     loss_func = ContrastiveRegularizedLoss(
         base_criterion=base_ce,
-        model=model,
         lambda_contrastive=lambda_contrastive,
         feature_layer=feature_layer,
         pos_threshold=pos_threshold,
@@ -498,6 +544,7 @@ def benchmark_task_contrastive(
         feature_norm=feature_norm,
         metadata_key=metadata_key,
         metadata_distance=metadata_distance,
+        metadata_weights=metadata_weights,
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, epochs=epochs, max_lr=lr, steps_per_epoch=len(train_dl))
@@ -525,6 +572,7 @@ def benchmark_task_contrastive(
         valid_dl_list=[valid_dl, noise_dl, atom_dl],
         valid_dl_names=['', 'noise', 'atom'],
         wandb_record=training_specs['wandb_record'],
+        contrastive_lambda_schedule=contrastive_lambda_schedule,
     )
     wandb.finish()
 

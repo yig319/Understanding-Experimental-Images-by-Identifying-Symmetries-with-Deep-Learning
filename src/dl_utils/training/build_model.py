@@ -5,6 +5,58 @@ import torch.nn.functional as F
 import timm
 import sys
 
+class ResNetFeatureWrapper(nn.Module):
+    """Wrap a torchvision ResNet to optionally return penultimate features."""
+
+    def __init__(self, backbone: nn.Module):
+        super().__init__()
+        # Register backbone components directly so state_dict keys remain compatible
+        self.conv1 = backbone.conv1
+        self.bn1 = backbone.bn1
+        self.relu = backbone.relu
+        self.maxpool = backbone.maxpool
+        self.layer1 = backbone.layer1
+        self.layer2 = backbone.layer2
+        self.layer3 = backbone.layer3
+        self.layer4 = backbone.layer4
+        self.avgpool = backbone.avgpool
+        self.fc = backbone.fc
+
+    def forward(self, x: torch.Tensor, return_features: bool = False):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        features = torch.flatten(x, 1)
+
+        fc = self.fc
+        if isinstance(fc, nn.Sequential):
+            embedding = features
+            layers = list(fc.children())
+            if layers:
+                for layer in layers[:-1]:
+                    embedding = layer(embedding)
+                logits = layers[-1](embedding)
+            else:
+                embedding = features
+                logits = fc(embedding)
+        else:
+            embedding = features
+            logits = fc(embedding)
+
+        if return_features:
+            return logits, embedding
+        return logits
+
+
+
 class STN(nn.Module):
     def __init__(self):
         super(STN, self).__init__()
@@ -141,43 +193,45 @@ def resnet34_(in_channels, n_classes, dropout=0.5, weights=None):
 
 
 def resnet50_(in_channels, n_classes, dropout=0.5, weights=None):
-    model = models.resnet50(weights=weights)
-    model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-    model.fc = nn.Sequential(nn.BatchNorm1d(2048),
-                            nn.Dropout(p=dropout, inplace=False),
-                            nn.Linear(in_features = 2048, out_features=512, bias=False),
-                            nn.ReLU(inplace=True),
+    backbone = models.resnet50(weights=weights)
+    backbone.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    backbone.fc = nn.Sequential(
+        nn.BatchNorm1d(2048),
+        nn.Dropout(p=dropout, inplace=False),
+        nn.Linear(in_features=2048, out_features=512, bias=False),
+        nn.ReLU(inplace=True),
 
-                            nn.BatchNorm1d(512),
-                            nn.Dropout(p=dropout, inplace=False),
-                            nn.Linear(in_features = 512, out_features=64, bias=False),
-                            nn.ReLU(inplace=True),
-                            
-                            nn.BatchNorm1d(64),
-                            nn.Dropout(p=dropout, inplace=False),
-                            nn.Linear(in_features=64, out_features=n_classes, bias=True)
-                            )
-    return model
+        nn.BatchNorm1d(512),
+        nn.Dropout(p=dropout, inplace=False),
+        nn.Linear(in_features=512, out_features=64, bias=False),
+        nn.ReLU(inplace=True),
+
+        nn.BatchNorm1d(64),
+        nn.Dropout(p=dropout, inplace=False),
+        nn.Linear(in_features=64, out_features=n_classes, bias=True),
+    )
+    return ResNetFeatureWrapper(backbone)
 
 
 def resnet50_gn_(in_channels, n_classes, pretrained=False):
-    model = models.resnet50(pretrained=pretrained)
-    model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-    model.fc = nn.Sequential(nn.GroupNorm(1, 2048),  # Using GroupNorm to prevent error when batch=1
-                             nn.Dropout(p=0.5, inplace=False),
-                             nn.Linear(in_features=2048, out_features=512, bias=False),
-                             nn.ReLU(inplace=True),
+    backbone = models.resnet50(pretrained=pretrained)
+    backbone.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    backbone.fc = nn.Sequential(
+        nn.GroupNorm(1, 2048),  # Using GroupNorm to prevent error when batch=1
+        nn.Dropout(p=0.5, inplace=False),
+        nn.Linear(in_features=2048, out_features=512, bias=False),
+        nn.ReLU(inplace=True),
 
-                             nn.GroupNorm(1, 512),  # Using GroupNorm to prevent error when batch=1
-                             nn.Dropout(p=0.5, inplace=False),
-                             nn.Linear(in_features=512, out_features=64, bias=False),
-                             nn.ReLU(inplace=True),
-                             
-                             nn.GroupNorm(1, 64),  # Using GroupNorm to prevent error when batch=1
-                             nn.Dropout(p=0.5, inplace=False),
-                             nn.Linear(in_features=64, out_features=n_classes, bias=True)
-                            )
-    return model
+        nn.GroupNorm(1, 512),
+        nn.Dropout(p=0.5, inplace=False),
+        nn.Linear(in_features=512, out_features=64, bias=False),
+        nn.ReLU(inplace=True),
+
+        nn.GroupNorm(1, 64),
+        nn.Dropout(p=0.5, inplace=False),
+        nn.Linear(in_features=64, out_features=n_classes, bias=True),
+    )
+    return ResNetFeatureWrapper(backbone)
 
 class fpn_model(nn.Module):
     def __init__(self, backbone):
